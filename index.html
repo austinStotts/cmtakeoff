@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" href="./style.css">
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'"
+    />
+    <meta
+      http-equiv="X-Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'"
+    />
+    <title>Custom Millwork Proposal Generator</title>
+  </head>
+  <body>
+    <div class="title-wrapper">
+      <img src="./Main logo.jpg" class="logo">
+      <span class="title">Custom Millwork <span class="title-2">Proposal Generator</span></span>
+    </div>
+    <div id="errors" class="errors"></div>
+    <div class="job-wrapper">
+      <div class="label">1 Job Details</div>
+      <input id="contractor-input" class="input" type="text" placeholder="contractor">
+      <input id="job-input" class="input" type="text" placeholder="job name">
+      <input id="date-input" class="input" type="text" placeholder="bid date">
+    </div>
+    <div class="exclusions-wrapper">
+      <div class="label">2 Qualifications</div>
+      <textarea name="qualifications" id="qualifications-input" class="qualifications-area" rows="5"></textarea>
+    </div>
+    <div class="exclusions-wrapper">
+      <div class="label">3 Exclusions</div>
+      <textarea name="exclusions" id="exclusions-input" class="exclusions-area" rows="5"></textarea>
+    </div>
+    <div class="price-wrapper">
+      <div class="label">4 Price</div>
+      <span>$ <input type="text" placeholder="bid ammount" id="price-input"></span>
+    </div>
+    <div class="save-wrapper">
+      <div class="label">5 Select Proposal Save Location</div>
+      <button id="save-location-btn" class="save-button">select save location</button>
+      <p class="location-label" id="save-location-label"></p>
+    </div>
+    <div class="file-wrapper">
+      <div class="label">6 Select CSV from Bluebeam</div>
+      <button id="open-file-btn" class="csv-button">select csv</button>
+    </div>
+    <div id="console"></div>
+  </body>
+  <script src="./renderer.js"></script>
+</html>

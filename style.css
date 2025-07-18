@@ -1,0 +1,108 @@
+html {
+    font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif;
+}
+
+.label {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.title-wrapper {
+    position: relative;
+}
+
+.title {
+    top: 10px;
+    left: 50px;
+    position: absolute;
+}
+
+.logo{
+    width: 40px;
+}
+
+.title-2 {
+    color: green;
+}
+
+.input {
+    display: block;
+    margin: 5px 0px;
+    height: 20px;
+    width: 200px;
+}
+
+.job-wrapper {
+    margin: 10px 0px;
+}
+
+.qualifications-wrapper {
+    margin: 10px 0px;
+}
+
+.qualifications-area {
+    width: 300px;
+    resize: none;
+}
+
+.exclusions-wrapper {
+    margin: 10px 0px;
+}
+
+.exclusions-area {
+    width: 300px;
+    resize: none;
+}
+
+.price-wrapper {
+    margin: 10px 0px;
+}
+
+.success {
+    background-color: rgb(112, 255, 112);
+}
+
+.location-label {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12px;
+}
+
+.save-label-label {
+    color: black;
+    font-style: normal;
+    font-weight: bold;
+}
+
+.save-label-location {
+    color: grey;
+    font-style: italic;
+}
+
+.errors {
+    color: red;
+    font-family: 'Courier New', Courier, monospace;
+    height: 20px;
+    width: 100%;
+    font-size: 14px;
+}
+
+.error-highlight {
+    font-size: 16px;
+    text-decoration: underline;
+}
+
+.csv-button {
+    width: 150px;
+}
+
+.csv-button:hover {
+    cursor: pointer;
+}
+
+.save-button {
+    width: 150px;
+}
+
+.save-button:hover {
+    cursor: pointer;
+}
