@@ -1,6 +1,6 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron/main')
-const path = require('node:path')
-let csvMethods = require("./index.js")
+const { app, BrowserWindow, ipcMain, dialog } = require('electron/main');
+const path = require('node:path');
+let csvMethods = require("./index.js");
 
 
 let mainWindow;

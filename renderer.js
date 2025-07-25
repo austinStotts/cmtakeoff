@@ -40,6 +40,7 @@ document.getElementById("open-file-btn").addEventListener("click", (e) => {
             // exclusions: exclusionsvalue,
             price: pricevalue,
         });
+        // document.getElementById("open-file-btn").classList.add("success");
         document.getElementById("errors").innerText = ""
     } else {
         document.getElementById("errors").innerText = "! please enter a contractor, job name, and bid date to continue"
