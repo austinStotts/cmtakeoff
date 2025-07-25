@@ -7,8 +7,8 @@ let mainWindow;
 
 const createWindow = () => {
   mainWindow = new BrowserWindow({
-    width: 750,
-    height: 800,
+    width: 400,
+    height: 600,
     icon: "./logo.png",
     webPreferences: {
       preload: path.join(__dirname, 'preload.js')
@@ -17,19 +17,14 @@ const createWindow = () => {
   mainWindow.loadFile('index.html')
 }
 
-// let handleCSV = (event, csv) => {
-//   console.log(csv);
-// }
 
 let saveLocation = "";
-
 
 let openFile = (event, details) => {
   console.log("opening file")
   dialog.showOpenDialog({properties: ['openFile']})
   .then(result =>  {
     console.log(result.canceled)
-    // console.log(result.filePaths)
     csvMethods.calculateProposal(result.filePaths[0], details, saveLocation);
   }).catch(err => {
     console.log(err)
@@ -40,13 +35,10 @@ let handleSaveLocation = (event) => {
   dialog.showSaveDialog({
     title: 'Select the File Path to save',
     defaultPath: path.join(__dirname, './proposal.pdf'),
-    // defaultPath: path.join(__dirname, '../assets/'),
     buttonLabel: 'Save',
-    // Restricting the user to only Text Files.
-    filters: [{extensions: ['docx']}],
+    filters: [{extensions: ['pdf']}],
     properties: []
   }).then(file => {
-    // Stating whether dialog operation was cancelled or not.
     console.log(file.canceled);
     if (!file.canceled) {
       console.log('got the file!')
@@ -62,7 +54,6 @@ let handleSaveLocation = (event) => {
 
 app.whenReady().then(() => {
   createWindow();
-
   ipcMain.on('open-file', openFile);
   ipcMain.on('save-location', handleSaveLocation);
 })

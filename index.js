@@ -1,147 +1,319 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron/main');
+const { app, BrowserWindow, ipcMain, dialog } = require("electron/main");
 let fs = require("fs");
-const PDFDocument = require('pdfkit');
+const PDFDocument = require("pdfkit");
 const { parse } = require("csv-parse");
 
 let roundall = (scope) => {
-  let keys =  Object.keys(scope);
-  for(let i = 0; i < keys.length; i++) {
-    let key = keys[i]
+  let keys = Object.keys(scope);
+  for (let i = 0; i < keys.length; i++) {
+    let key = keys[i];
     let items = Object.keys(scope[key]);
-    for(let j = 0; j < items.length; j++) {
-      scope[key][items[j]] = Math.ceil(scope[key][items[j]])
+    for (let j = 0; j < items.length; j++) {
+      scope[key][items[j]][0] = Math.round(scope[key][items[j]][0] + 0.2);
     }
   }
-}
+};
 
-let organize = (scope) => {
-  let keys = Object.keys(scope);
-  keys.forEach(key => {
-    scope[key].name = key
-  })
-}
+let randomsort = (a, b) => 0.5 - Math.random();
 
-// let csv = "../../../../Desktop/Marshall County Revised.csv";
 let rows = [];
 
 let calculateProposal = (file, details, saveLocation) => {
-  if(file != null) {
+  if (file != null) {
     fs.createReadStream(file)
       .pipe(parse({ delimiter: ",", from_line: 2 }))
       .on("data", function (row) {
         rows.push(row);
-    }).on("end", () => {
+      })
+      .on("end", () => {
         console.log("input successful");
-        let scope = {}
-        // console.log(rows)
-        for(let i = 0; i < rows.length; i++) {
-          console.log(rows[i])
-          if(!scope[rows[i][0]]) {
-            scope[rows[i][0]] = {}
-            scope[rows[i][0]][rows[i][3]] = Number(rows[i][1])
+        let scope = {};
+        let totals = {};
+        // This loop organizes the raw csv data into rooms and items
+        // it is mandatory for the csv columns to be in the correct order
+        // scope - measurement - label - subject - special comments
+        for (let i = 0; i < rows.length; i++) {
+          let room = rows[i][0];
+          let measurement = rows[i][1];
+          let unit = rows[i][2];
+          let item = rows[i][3];
+          let label = rows[i][4];
+          // scope
+          if (!scope[room]) {
+            scope[room] = {};
+            scope[room][item] = [Number(measurement), unit];
           } else {
-            if(scope[rows[i][0]][rows[i][3]] == undefined) {
-              scope[rows[i][0]][rows[i][3]] = Number(rows[i][1]);
+            if (scope[room][item] == undefined) {
+              scope[room][item] = [Number(measurement), unit];
             } else {
-              scope[rows[i][0]][rows[i][3]] = Number(scope[rows[i][0]][rows[i][3]]) + Number(rows[i][1]);  
+              scope[room][item][0] =
+                Number(scope[room][item][0]) + Number(measurement);
+            }
+          }
+          // totals
+          console.log(room);
+          let roomarray = room.split(" ");
+          let n = 1;
+          if (roomarray[0].toLowerCase().includes("x)")) {
+            n = roomarray[0].slice(1, roomarray[0].length - 2);
+          } else if (roomarray[0].toLowerCase().includes("(x")) {
+            n = roomarray[0].slice(2, roomarray[0].length - 1);
+          } else if (
+            roomarray[roomarray.length - 1].toLowerCase().includes("x)")
+          ) {
+            n = roomarray[roomarray.length - 1].slice(
+              1,
+              roomarray[roomarray.length - 1].length - 2
+            );
+          } else if (
+            roomarray[roomarray.length - 1].toLowerCase().includes("(x")
+          ) {
+            n = roomarray[roomarray.length - 1].slice(
+              2,
+              roomarray[roomarray.length - 1].length - 1
+            );
+          } else {
+          }
+
+          if (totals[item]) {
+            totals[item] = totals[item] + Number(measurement) * n;
+          } else {
+            totals[item] = Number(measurement) * n;
+          }
+        }
+
+        // before the scope is used in the document all numbers are rounded up
+        roundall(scope);
+        console.log(totals);
+
+        // PDF Creation
+        // adds the header date and other data from the boxes in the application
+        const doc = new PDFDocument({ size: "LETTER", margin: 72});
+        doc.pipe(fs.createWriteStream(saveLocation));
+        doc.text(`                                                                                                                                            `)
+        doc.fontSize(24);
+        doc.font("Times-Bold").text("Custom Millwork", { align: "center"});
+        doc.fontSize(16);
+        doc.font("Times-Bold");
+        // doc.text("1200 Murphy Drive", { align: "center" });
+        // doc.text("Maumelle, AR 72113", { align: "center" });
+        // doc.text("Phone: 501.851.4421", { align: "center" });
+        let headerText = ["1200 Murphy Drive", "Maumelle, AR 72113", "Phone: 501.851.4421"];
+        doc.text(`${headerText.map(item => item).join("\n")}`, { align: 'center' })
+        let imageWidth = 70;
+        doc.image('./AWICQW.png',
+          doc.page.width/2 - imageWidth/2,doc.y,{
+          width:imageWidth,
+        });
+        doc.text(`
+
+
+
+  `);
+
+        doc.fontSize(12);
+        doc.text(details.date);
+        doc.text(`
+          `)
+        let jobText = [`To: ${details.contractor}`, `Project: ${details.job}`, `Attention: Estimating
+          `];
+        doc.text(jobText.join("\n"));
+        // doc.text(`
+        //   `);
+      
+        doc.font("Times-Bold");
+        doc.text(`Pricing Qualifications:`, { underline: true });
+        let qualificationText = [`Drawer pulls: 4-inch wire pull`, `Door Pulls: 4-inch wire pull`, `Hinges: Blum concealed self-close`, `Drawers: Blum Metabox system
+          `];
+        doc.font("Times-Roman");
+        doc.text(qualificationText.join("\n"));
+        // doc.text(`
+        //   `);
+
+        
+        doc.font("Times-Bold");
+        doc.text(`Project Exclusions:`, { underline: true });
+        let exclusionText = [`Excludes QCP Certification and Labels`, `Excludes Arkansas Wage Rate/LEED/FSC certification labels`, `Excludes All Lighting and Electrical`, `Excludes All Painting and Finishing`, `Excludes All Demolition
+          `];
+        doc.font("Times-Roman");
+        doc.text(exclusionText.join("\n"));
+        // doc.text(`
+          
+        //   `);
+        
+        
+        let i = 1;
+        for (const [key, value] of Object.entries(scope)) {
+          // (i) Rooms
+          doc.font("Times-Bold");
+          doc.text(`${i}. ${key}`);
+          i++;
+          let itemlist = [];
+          for (let [room, item] of Object.entries(value)) {
+            // (j) Items
+            doc.font("Times-Roman");
+            doc.fontSize(12);
+            // depending on the 'unit' of measurement the appropriate description will be used
+            if (room.startsWith("LF of")) {
+              room = room.slice(5);
+            } // attempt to filter out the use of proposal text in the tools
+            if (item[1] == "sf") {
+              itemlist.push(`${item[0]} SQFT of ${room}`);
+            } else if (item[1] == "Count") {
+              itemlist.push(`(${item[0]}X) ${room}`);
+            } else {
+              itemlist.push(`${item[0]} LF of ${room}`);
             }
           }
 
+          doc.text(`${itemlist.join('\n')}
+          `)
         }
 
-        // console.log(scope)
-        roundall(scope);
-        // organize(scope);
-        console.log(scope);
-        
-
-
-        // PDF CREATE
-        const doc = new PDFDocument({ size: 'LETTER' });
-        doc.pipe(fs.createWriteStream(saveLocation)); // write to PDF
-        // doc.pipe(res);                                       // HTTP response
-        // doc.addPage({ size: "LETTER"})
-        doc.fontSize(24)
-        doc.font("Times-Bold").text("Custom Millwork", { align: 'center' })
-        doc.fontSize(16)
-        doc.font("Times-Bold").text("1200 Murphy Drive", { align: 'center' })
-        doc.font("Times-Bold").text("Maumelle, AR 72113", { align: 'center' })
-        doc.font("Times-Bold").text("Phone: 501.851.4421", { align: 'center' })
-        // doc.image("./AWICQW.png", { width: '100', fit: [200, 200], align: 'center',  })
-        let imageWidth = 100 // what you wants
-        doc.image('./AWICQW.png', 
-          doc.page.width/2 - imageWidth/2,doc.y,{
-          width:imageWidth
-        });
-        doc.moveDown(8)
-        doc.fontSize(12)
-        doc.text(`Bid Date: ${details.date}`, { align: 'left' })
-        doc.moveDown(1)
-        doc.text(`To:               ${details.contractor}`, { align: 'left' })
-        doc.text(`Project:       ${details.job}`, { align: 'left' })
-        doc.text(`Attention:   Estimating`, { align: 'left' })
-        doc.moveDown(2);
-        doc.text('Pricing Qualifications:', { underline: true });
-        details.qualifications.split('\n').forEach(qualification => {
-          doc.text(qualification);
-        })
-        doc.moveDown(2);
-        doc.text('Project Specific Exclusions:', { underline: true });
-        details.exclusions.split('\n').forEach(exclusion => {
-          doc.text(exclusion);
-        })
-        doc.moveDown(2);
-        let i = 1;
-        for (const [key, value] of Object.entries(scope)) {
-          doc.font('Times-Bold');
-          doc.text(`${i}: ${key}`, )
-          i++
-          for (const [room, item] of Object.entries(value)) {
-            doc.font('Times-Roman');
-            doc.text(`${item} LF of ${room}`, { indent: '36' })
-          }
-
-        }
-
-        doc.moveDown(2);
-        doc.text(`Base Price for Furnished and Installed: ......$${details.price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.00`)
-        doc.moveDown(2);
         doc.text(`
-NOTE:
-Installation of any item (s) not supplied by Custom Millwork are Excluded
-EXCLUSIONS: Anything not listed above including but not limited to the following: 
+  `)
+        doc.font("Times-Bold");
+        doc.text(
+          `Base Price for Furnished and Installed: ......$${details.price
+            .toString()
+            .replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.00`,
+          {}
+        );
 
-1.   Finishing
-2.   Sinks (Unless Otherwise Noted)
-3.   Wall, Floor & Ceiling Tile
-4.   All after Hours Work
-5.   Standing or Running Trims Unless Otherwise Listed
-6.   All Acoustic Wall &/or Fabric Covered Panels 
-7.   All Tackable &/or Writing Boards
-8.   All Blocking Unless Otherwise Noted
-9.   Glass and Glass Hardware Unless Otherwise Noted
-10.  Hollow Metal Work
-11.  Finish or Rough Hardware 
-12.  Interior & Exterior Trim Unless Otherwise Noted
-13.  Metal or Wood Framing
-14.  Performance and Payment Bonds
-15.  Liquidated Damages
-16.  Steel or Wood doors, jambs and Casings
-17.  Overtime work due to job falling behind schedule ahead of our scope.
-`)
+        doc.text(`
+          
+          `)
+
+        let noteText1 = [
+          `NOTE:`,
+          `Installation of any item(s) not supplied by Custom Millwork are Excluded`,
+          `EXCLUSIONS: Anything not listed above including but not limited to the following:`,
+        ]
+        let noteText2 = [
+          `1.  Finishing`,
+          `2.  Sinks (Unless Otherwise Noted)`,
+          `3.  Wall, Floor & Ceiling Tile`,
+          `4.  All after Hours Work`,
+          `5.  Standing or Running Trims Unless Otherwise Listed`,
+          `6.  All Acoustic Wall &/or Fabric Covered Panels`,
+          `7.  All Tackable &/or Writing Boards`,
+          `8.  All Blocking Unless Otherwise Noted`,
+          `9.  Glass and Glass Hardware Unless Otherwise Noted`,
+          `10. Hollow Metal Work`,
+          `11. Finish or Rough Hardware`,
+          `12. Interior & Exterior Trim Unless Otherwise Noted`,
+          `13. Metal or Wood Framing`,
+          `14. Performance and Payment Bonds`,
+          `15. Liquidated Damages`,
+          `16. Steel or Wood doors, jambs and Casings`,
+          `17. Overtime work due to job falling behind schedule ahead of our scope
+          `,
+        ];
 
 
+        doc.font("Times-Bold");
+        doc.fontSize(12);
+        doc.text(noteText1.join("\n"));
+        doc.font("Times-Roman");
+        doc.fontSize(10);
+        doc.text(noteText2.join("\n"));
+        doc.text(`
+          
+          `)
+
+        let conditionsText = [
+          `1. Upon acceptance, as evidenced by signatures of the purchaser and an officer of our company, this proposal becomes a valid contract.  If other contract forms are used, this proposal automatically becomes a part of any contract into which we might enter for the work covered – whether or not the contract stated that wood work will be a defined in this quotation.`,
+          `2. Proposal is good for 14 days.`,
+          `3. Work in progress cannot be changed without a written change order.`,
+          `4. No back charges will be allowed without our written consent.`,
+          `5. Clerical errors subject to correction.`,
+          `6. Required delivery dates shall be given in writing.  Should job be unable to take delivery at scheduled time, we shall be entitled to payment for such materials upon presentation of proper certification and insurance.
+          `
+        ]
+        
+        doc.font("Times-Bold");
+        doc.fontSize(12);
+        doc.text(`CONDITIONS:`);
+        doc.font("Times-Roman");
+        doc.fontSize(10);
+        doc.text(conditionsText.join("\n"));
+        doc.text(`
+          
+          `)
+
+        
+        let importantText1 = [
+          `1. Cabinets, brand named or kitchen`,
+          `2. Chalk, cork or bulletin boards (except wood trim, furnished loose, unmitered)`,
+          `3. Compositions, except caps for columns & items to be shop fastened to millwork items`,
+          `4. Fabrics, felt or soft plastics`,
+          `5. Fencing materials`,
+          `6. Flooring, deck boards & catwalks`,
+          `7. Folding or sliding brand name doors`,
+          `8. Frames and picket doors for folding & overhead doors`,
+          `9. Glass, glazing or mirrors`,
+          `10.  Hard boards`,
+          `11.  Door hardware, not the preparation for installation of`,
+          `12.  Insulation, cement or asbestos materials`,
+          `13.  Labor at job site`,
+          `14.  Ladders `,
+          `15.  Linoleum`,
+          `16.  Metal items of any kind`,
+          `17.  Metal louvers, grilles, or their installation`,
+          `18.  Metal moldings used with materials supplied by others`,
+          `19.  Overhead doors or their jambs`,
+          `20.  Plastic items other than laminated plastic`,
+          `21.  Priming, back-painting finishing or preservative treatment`,
+          `22.  Repairs or alterations to existing materials`,
+          `23.  Roof decking, exposed`,
+          `24.  Shop notching or cutting on shelving & battens furnished loose`,
+          `25.  Temporary millwork`,
+          `26.  Weather-stripping`,
+          `27.  Wood shingles, shakes or siding`,
+          `28.  Wood, rough bucks, furring, & other materials not exposed to view`,
+          `29.  X-ray & refrigerator doors`,
+          `30.  Dock bumper`,
+          `31.  Cash allowances
+          `,
+        ]
+
+        let importantText2 = [
+          `(B)  Flush plywood panel work furnished in commercial size panels unless shop work is required on edges.`,
+          `(C)  Terms are net, due the fifteenth of the month following requisition of materials. We reserve the right to stop delivery of materials if payments are not made when due. Payments not made in full by the by the 26th proximal will subject the balance to a finance charge of 1.5% per calendar month or fraction thereof until paid.`,
+          `(D)  All contracts are contingent upon strikes, breakdowns, fires, or other causes beyond our control and are accepted subject to approved credit.
+          `,
+        ]
+
+        doc.font("Times-Bold");
+        doc.fontSize(12);
+        doc.text(`(A.)  IMPORTANT: THE FOLLOWING ITEMS ARE CONSIDERED 
+“ARCHITECTURAL WOODWORK” AND DO NOT FORM A PART OF THE 
+PROPOSAL UNLESS NOTED:`)
+        doc.font("Times-Roman");
+        doc.fontSize(10);
+        doc.text(importantText1.join("\n"));
+        doc.font("Times-Bold");
+        doc.fontSize(12);
+        doc.text(importantText2.join("\n"))
 
         doc.end();
 
+        // save a second document of the same name + '-totals'
+        // show totals for each item in the job
 
-
-    })
+        let saveLocation2 = saveLocation.split(".")[0] + "-totals.pdf";
+        const doc2 = new PDFDocument({ size: "LETTER" });
+        doc2.pipe(fs.createWriteStream(saveLocation2));
+        doc2.fontSize(16);
+        doc2.font("Times-Roman");
+        for (let [item, value] of Object.entries(totals)) {
+          doc2.text(`${item}: ${Math.ceil(value)}`);
+        }
+        doc2.end();
+      });
   } else {
-    console.log("cannot parse csv - no file location")
+    console.log("cannot parse csv - no file location");
   }
+};
 
-}
-
-
-module.exports = { calculateProposal }
+module.exports = { calculateProposal };

@@ -1,3 +1,5 @@
+// I removed the qualifications and exclusions textboxes for the sake of keeping things as simple as possible to start
+
 let con = document.getElementById("console");
 
 let saveBTN = document.getElementById('save-location-btn');
@@ -6,22 +8,22 @@ let saveLabel = document.getElementById('save-location-label');
 let contractorinput = document.getElementById("contractor-input");
 let jobinput = document.getElementById("job-input");
 let dateinput = document.getElementById("date-input");
-let qualificationsinput = document.getElementById("qualifications-input");
-let exclusionsinput = document.getElementById("exclusions-input");
+// let qualificationsinput = document.getElementById("qualifications-input");
+// let exclusionsinput = document.getElementById("exclusions-input");
 let priceinput = document.getElementById("price-input");
 
 let contractorvalue = "";
 let jobvalue = "";
 let datevalue = "";
-let qualificationsvalue = "";
-let exclusionsvalue = "";
+// let qualificationsvalue = "";
+// let exclusionsvalue = "";
 let pricevalue = "";
 
 contractorinput.addEventListener("change", (e) => { contractorvalue = e.target.value });
 jobinput.addEventListener("change", (e) => { jobvalue = e.target.value });
 dateinput.addEventListener("change", (e) => { datevalue = e.target.value });
-qualificationsinput.addEventListener("change", (e) => { qualificationsvalue = e.target.value });
-exclusionsinput.addEventListener("change", (e) => { exclusionsvalue = e.target.value });
+// qualificationsinput.addEventListener("change", (e) => { qualificationsvalue = e.target.value });
+// exclusionsinput.addEventListener("change", (e) => { exclusionsvalue = e.target.value });
 priceinput.addEventListener("change", (e) => { pricevalue = e.target.value });
 
 document.getElementById("save-location-btn").addEventListener("click", (e) => {
@@ -34,8 +36,8 @@ document.getElementById("open-file-btn").addEventListener("click", (e) => {
             contractor: contractorvalue,
             job: jobvalue,
             date: datevalue,
-            qualifications: qualificationsvalue,
-            exclusions: exclusionsvalue,
+            // qualifications: qualificationsvalue,
+            // exclusions: exclusionsvalue,
             price: pricevalue,
         });
         document.getElementById("errors").innerText = ""
