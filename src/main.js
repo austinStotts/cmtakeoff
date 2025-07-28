@@ -1,3 +1,4 @@
+if(require('electron-squirrel-startup')) return;
 const { app, BrowserWindow, ipcMain, dialog } = require('electron/main');
 const path = require('node:path');
 let csvMethods = require("./index.js");
@@ -9,12 +10,13 @@ const createWindow = () => {
   mainWindow = new BrowserWindow({
     width: 400,
     height: 600,
-    icon: "./logo.png",
+    icon: process.resourcesPath + "/images/logo.png",
+    
     webPreferences: {
       preload: path.join(__dirname, 'preload.js')
     }
   })
-  mainWindow.loadFile('index.html')
+  mainWindow.loadFile('src/index.html')
 }
 
 

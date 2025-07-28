@@ -2,7 +2,7 @@
   "name": "cmtakeoff",
   "version": "1.0.1",
   "description": "Custom Millwork proposal generation tool",
-  "main": "main.js",
+  "main": "src/main.js",
   "scripts": {
     "start": "electron-forge start",
     "package": "electron-forge package",

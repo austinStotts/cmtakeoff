@@ -101,7 +101,7 @@ let calculateProposal = (file, details, saveLocation) => {
         let headerText = ["1200 Murphy Drive", "Maumelle, AR 72113", "Phone: 501.851.4421"];
         doc.text(`${headerText.map(item => item).join("\n")}`, { align: 'center' })
         let imageWidth = 70;
-        doc.image('AWICQW.png',
+        doc.image(process.resourcesPath + '/images/AWICQW.png',
           doc.page.width/2 - imageWidth/2,doc.y,{
           width:imageWidth,
         });

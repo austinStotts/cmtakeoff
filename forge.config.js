@@ -1,15 +1,24 @@
 const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
+const { options } = require('pdfkit');
 
 module.exports = {
   packagerConfig: {
+    extraResource: [
+      './images'
+    ],
+    icon: 'images/logo',
     asar: true,
   },
   rebuildConfig: {},
   makers: [
     {
       name: '@electron-forge/maker-squirrel',
-      config: {},
+      config: {
+        options: {
+          icon: __dirname + "/images/logo.ico"
+        }
+      },
     },
     {
       name: '@electron-forge/maker-zip',
