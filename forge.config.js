@@ -7,7 +7,7 @@ module.exports = {
     extraResource: [
       './images'
     ],
-    icon: 'images/logo',
+    icon: __dirname + 'images/logo',
     asar: true,
   },
   rebuildConfig: {},

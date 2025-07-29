@@ -30,7 +30,9 @@ document.getElementById("save-location-btn").addEventListener("click", (e) => {
     window.electronAPI.saveLocation();
 })
 
-document.getElementById("open-file-btn").addEventListener("click", (e) => {
+let csvBTN = document.getElementById("open-file-btn");
+
+csvBTN.addEventListener("click", (e) => {
     if(contractorvalue.length > 0 && jobvalue.length > 0 && datevalue.length > 0 && pricevalue.length > 0) {
         window.electronAPI.openFile({
             contractor: contractorvalue,
@@ -52,6 +54,19 @@ window.electronAPI.saveLocationSuccess((success, location) => {
         saveBTN.classList.add("success");
         saveLabel.innerHTML = `
             <span class="save-label-label">saving proposal to: </span><span class="save-label-location">${location}</span>
+        `
+    } else {
+        // tell user the save location is invalid
+    }
+})
+
+let csvLabel = document.getElementById("generation-success-label");
+
+window.electronAPI.csvLocationSuccess((success, location) => {
+    if(success) {
+        csvBTN.classList.add("success");
+        csvLabel.innerHTML = `
+            <span class="save-label-label">successfully saved proposal to: </span><span class="save-label-location">${location}</span>
         `
     } else {
         // tell user the save location is invalid

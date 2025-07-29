@@ -11,14 +11,12 @@ const createWindow = () => {
     width: 400,
     height: 600,
     icon: process.resourcesPath + "/images/logo.png",
-    
     webPreferences: {
       preload: path.join(__dirname, 'preload.js')
     }
   })
   mainWindow.loadFile('src/index.html')
 }
-
 
 let saveLocation = "";
 
@@ -27,7 +25,10 @@ let openFile = (event, details) => {
   dialog.showOpenDialog({properties: ['openFile']})
   .then(result =>  {
     console.log(result.canceled)
-    csvMethods.calculateProposal(result.filePaths[0], details, saveLocation);
+    let callback = () => {
+      mainWindow.webContents.send('csv-location-success', true, saveLocation);
+    }
+    csvMethods.calculateProposal(result.filePaths[0], details, saveLocation, callback);
   }).catch(err => {
     console.log(err)
   })
@@ -36,9 +37,9 @@ let openFile = (event, details) => {
 let handleSaveLocation = (event) => {
   dialog.showSaveDialog({
     title: 'Select the File Path to save',
-    defaultPath: path.join(__dirname, './proposal.pdf'),
+    defaultPath: "P:\\Plans Download\\proposal.pdf",
     buttonLabel: 'Save',
-    filters: [{extensions: ['pdf']}],
+    filters: [{name: "PDF", extensions: ['pdf']}],
     properties: []
   }).then(file => {
     console.log(file.canceled);
@@ -67,3 +68,4 @@ app.on('window-all-closed', () => {
 })
 
 
+// maybe add auto open in word

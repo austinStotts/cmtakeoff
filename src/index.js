@@ -18,7 +18,7 @@ let randomsort = (a, b) => 0.5 - Math.random();
 
 let rows = [];
 
-let calculateProposal = (file, details, saveLocation) => {
+let calculateProposal = (file, details, saveLocation, callback) => {
   if (file != null) {
     fs.createReadStream(file)
       .pipe(parse({ delimiter: ",", from_line: 2 }))
@@ -76,9 +76,9 @@ let calculateProposal = (file, details, saveLocation) => {
           }
 
           if (totals[item]) {
-            totals[item] = totals[item] + Number(measurement) * n;
+            totals[item] = [totals[item][0] + Number(measurement) * n, unit];
           } else {
-            totals[item] = Number(measurement) * n;
+            totals[item] = [Number(measurement) * n, unit];
           }
         }
 
@@ -101,7 +101,7 @@ let calculateProposal = (file, details, saveLocation) => {
         let headerText = ["1200 Murphy Drive", "Maumelle, AR 72113", "Phone: 501.851.4421"];
         doc.text(`${headerText.map(item => item).join("\n")}`, { align: 'center' })
         let imageWidth = 70;
-        doc.image(process.resourcesPath + '/images/AWICQW.png',
+        doc.image(process.resourcesPath + '/images/AWICQW.png' || "../images/AWICQW.png",
           doc.page.width/2 - imageWidth/2,doc.y,{
           width:imageWidth,
         });
@@ -302,14 +302,23 @@ PROPOSAL UNLESS NOTED:`)
         // show totals for each item in the job
 
         let saveLocation2 = saveLocation.split(".")[0] + "-totals.pdf";
-        const doc2 = new PDFDocument({ size: "LETTER" });
+        const doc2 = new PDFDocument({ size: "LETTER", margins: { top: 25, bottom: 25, left: 50, right: 50 } });
         doc2.pipe(fs.createWriteStream(saveLocation2));
-        doc2.fontSize(16);
-        doc2.font("Times-Roman");
+        doc2.fontSize(10);
+        doc2.font("Courier");
+        let data = [];
+        // console.log(totals);
         for (let [item, value] of Object.entries(totals)) {
-          doc2.text(`${item}: ${Math.ceil(value)}`);
+          let row = [item, value[1] == `ft' in"` ? "LF" : value[1] == `ft` ? "LF" : value[1], Math.ceil(value[0])];
+          data.push(row);
         }
+        data.sort();
+        doc2.table({
+          data,
+          columnStyles: ["*", 50, 50],
+        })
         doc2.end();
+        callback()
       });
   } else {
     console.log("cannot parse csv - no file location");
