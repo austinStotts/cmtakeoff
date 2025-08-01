@@ -3,7 +3,7 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron/main');
 const path = require('node:path');
 let csvMethods = require("./index.js");
 
-
+let devMode = true;
 let mainWindow;
 
 const createWindow = () => {
@@ -37,7 +37,7 @@ let openFile = (event, details) => {
 let handleSaveLocation = (event) => {
   dialog.showSaveDialog({
     title: 'Select the File Path to save',
-    defaultPath: "P:\\Plans Download\\proposal.pdf",
+    defaultPath: devMode ? "C:\\Users\\astotts\\Desktop\\CSV TESTING\\proposal.pdf" : "P:\\Plans Download\\proposal.pdf",
     buttonLabel: 'Save',
     filters: [{name: "PDF", extensions: ['pdf']}],
     properties: []

@@ -3,22 +3,39 @@ let fs = require("fs");
 const PDFDocument = require("pdfkit");
 const { parse } = require("csv-parse");
 
+let devMode = true;
+
 let roundall = (scope) => {
   let keys = Object.keys(scope);
   for (let i = 0; i < keys.length; i++) {
     let key = keys[i];
     let items = Object.keys(scope[key]);
     for (let j = 0; j < items.length; j++) {
-      scope[key][items[j]][0] = Math.round(scope[key][items[j]][0] + 0.2);
+      if(items[j] != "pages") { // do not round the page array
+        scope[key][items[j]][0] = Math.round(scope[key][items[j]][0] + 0.2);
+      }
     }
   }
 };
 
 let randomsort = (a, b) => 0.5 - Math.random();
 
+//                   array       string
+let checkPages = (currentPages, page) => {
+  let hasPage = false;
+  for(let i = 0; i < currentPages.length; i++) {
+    console.log(currentPages[i], page);
+    if(currentPages[i] == page) { hasPage = true }
+  }
+  return hasPage;
+}
+
 let rows = [];
 
 let calculateProposal = (file, details, saveLocation, callback) => {
+  console.log("file: ", file);
+  console.log("details: ", details);
+  console.log("saveLocation: ", saveLocation);
   if (file != null) {
     fs.createReadStream(file)
       .pipe(parse({ delimiter: ",", from_line: 2 }))
@@ -37,21 +54,30 @@ let calculateProposal = (file, details, saveLocation, callback) => {
           let measurement = rows[i][1];
           let unit = rows[i][2];
           let item = rows[i][3];
-          let label = rows[i][4];
+          let page = rows[i][4];
+          let label = rows[i][5];
+
+          // console.log(room, measurement, unit, item, label);
           // scope
-          if (!scope[room]) {
-            scope[room] = {};
+          if (!scope[room]) { // if the room does not exist
+            if (page) { scope[room] = { pages: [page] } }
             scope[room][item] = [Number(measurement), unit];
-          } else {
+            // scope[room].pages.push(`${page}`);
+          } else { // if the item does not exist
             if (scope[room][item] == undefined) {
               scope[room][item] = [Number(measurement), unit];
-            } else {
-              scope[room][item][0] =
-                Number(scope[room][item][0]) + Number(measurement);
+              if(page && !checkPages(scope[room].pages, page)) {
+                scope[room].pages.push(`${page}`);
+              }
+            } else { // if the item already exists
+              scope[room][item][0] = Number(scope[room][item][0]) + Number(measurement);
+              if(page && !checkPages(scope[room].pages, page)) {
+                scope[room].pages.push(`${page}`);
+              }
             }
           }
           // totals
-          console.log(room);
+          // console.log(room);
           let roomarray = room.split(" ");
           let n = 1;
           if (roomarray[0].toLowerCase().includes("x)")) {
@@ -84,7 +110,7 @@ let calculateProposal = (file, details, saveLocation, callback) => {
 
         // before the scope is used in the document all numbers are rounded up
         roundall(scope);
-        console.log(totals);
+        console.log(scope);
 
         // PDF Creation
         // adds the header date and other data from the boxes in the application
@@ -101,10 +127,22 @@ let calculateProposal = (file, details, saveLocation, callback) => {
         let headerText = ["1200 Murphy Drive", "Maumelle, AR 72113", "Phone: 501.851.4421"];
         doc.text(`${headerText.map(item => item).join("\n")}`, { align: 'center' })
         let imageWidth = 70;
-        doc.image(process.resourcesPath + '/images/AWICQW.png' || "../images/AWICQW.png",
-          doc.page.width/2 - imageWidth/2,doc.y,{
-          width:imageWidth,
-        });
+
+        if(devMode) {
+          doc.image("./images/AWICQW.png",
+            doc.page.width/2 - imageWidth/2,doc.y,{
+            width:imageWidth,
+          });
+        } else {
+          doc.image(process.resourcesPath + '/images/AWICQW.png',
+            doc.page.width/2 - imageWidth/2,doc.y,{
+            width:imageWidth,
+          });
+        }
+
+
+
+
         doc.text(`
 
 
@@ -151,13 +189,16 @@ let calculateProposal = (file, details, saveLocation, callback) => {
           let itemlist = [];
           for (let [room, item] of Object.entries(value)) {
             // (j) Items
-            doc.font("Times-Roman");
-            doc.fontSize(12);
+
             // depending on the 'unit' of measurement the appropriate description will be used
             if (room.startsWith("LF of")) {
               room = room.slice(5);
+            } else if (room.startsWith("of")) {
+              room = room.slice(2);
             } // attempt to filter out the use of proposal text in the tools
-            if (item[1] == "sf") {
+            if (room == "pages") {
+              doc.text(`As seen on: (${item.join(', ')})`);
+            } else if (item[1] == "sf") {
               itemlist.push(`${item[0]} SQFT of ${room}`);
             } else if (item[1] == "Count") {
               itemlist.push(`(${item[0]}X) ${room}`);
@@ -165,7 +206,8 @@ let calculateProposal = (file, details, saveLocation, callback) => {
               itemlist.push(`${item[0]} LF of ${room}`);
             }
           }
-
+          doc.font("Times-Roman");
+          doc.fontSize(12);
           doc.text(`${itemlist.join('\n')}
           `)
         }
@@ -305,6 +347,9 @@ PROPOSAL UNLESS NOTED:`)
         const doc2 = new PDFDocument({ size: "LETTER", margins: { top: 25, bottom: 25, left: 50, right: 50 } });
         doc2.pipe(fs.createWriteStream(saveLocation2));
         doc2.fontSize(10);
+        doc2.font("Courier-Bold");
+        doc2.text(details.job);
+        doc2.text(saveLocation2);
         doc2.font("Courier");
         let data = [];
         // console.log(totals);
