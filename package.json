@@ -22,7 +22,9 @@
   "dependencies": {
     "@electron-forge/publisher-github": "^7.8.1",
     "csv": "^6.4.1",
+    "docx": "^9.5.1",
     "electron-squirrel-startup": "^1.0.1",
+    "open": "^10.2.0",
     "pdfkit": "^0.17.1",
     "update-electron-app": "^3.1.1"
   },
