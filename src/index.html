@@ -18,39 +18,49 @@
       <img src="../images/Main logo.jpg" class="logo">
       <span class="title">Custom Millwork <span class="title-2">Proposal Generator</span></span>
     </div>
-    <div id="errors" class="errors"></div>
-    <div class="job-wrapper">
-      <div class="label">1 Job Details</div>
-      <input id="contractor-input" class="input" type="text" placeholder="contractor">
-      <input id="job-input" class="input" type="text" placeholder="job name">
-      <input id="date-input" class="input" type="text" placeholder="bid date">
+    <div class="settings-button-wrapper">
+      <button id="settings-btn" class="settings-btn">⚙️</button>
     </div>
-    <!-- <div class="qualifications-wrapper">
-      <div class="label">2 Qualifications</div>
-      <div class="default-qual-label-wrapper"><span class="default-qual-label">default qualifications?</span><input type="checkbox" class="input-default-qual"></div>
-      <textarea name="qualifications" id="qualifications-input" class="qualifications-area" rows="5"></textarea>
+    <div id="settings-view-wrapper" class="settings-view-wrapper"></div>
+    <div id="main-view-wrapper" class="main-view-wrapper">
+      <div id="errors" class="errors"></div>
+      <div class="job-wrapper">
+        <div class="label">1 Job Details</div>
+        <input id="contractor-input" class="input" type="text" placeholder="contractor">
+        <input id="job-input" class="input" type="text" placeholder="job name">
+        <input id="date-input" class="input" type="text" placeholder="bid date">
+      </div>
+      <!-- <div class="qualifications-wrapper">
+        <div class="label">2 Qualifications</div>
+        <div class="default-qual-label-wrapper"><span class="default-qual-label">default qualifications?</span><input type="checkbox" class="input-default-qual"></div>
+        <textarea name="qualifications" id="qualifications-input" class="qualifications-area" rows="5"></textarea>
+      </div>
+      <div class="exclusions-wrapper">
+        <div class="label">3 Exclusions</div>
+        <div class="default-exclusions-label-wrapper"><span class="default-exclusions-label">default exclusions?</span><input type="checkbox" class="input-default-exclusions"></div>
+        <textarea name="exclusions" id="exclusions-input" class="exclusions-area" rows="5"></textarea>
+      </div> -->
+      <div class="price-wrapper">
+        <div class="label">2 Price</div>
+        <span class="price-input-wrapper">$ <input type="text" placeholder="bid amount" id="price-input" class="price-input"></span>
+      </div>
+      <div class="save-wrapper">
+        <div class="label">3 Select Proposal Save Location</div>
+        <button id="save-location-btn" class="save-button">select save location</button>
+        <p class="location-label" id="save-location-label"></p>
+      </div>
+      <div class="file-wrapper">
+        <div class="label">4 Select CSV from Bluebeam</div>
+        <button id="open-file-btn" class="csv-button">select csv</button>
+        <p class="location-label" id="generation-success-label"></p>
+      </div>
+      <!-- <div class="next-wrapper">
+        <button class="next-btn disable" id="nextbtn1">next</button>
+      </div> -->
+      <div id="console"></div>
     </div>
-    <div class="exclusions-wrapper">
-      <div class="label">3 Exclusions</div>
-      <div class="default-exclusions-label-wrapper"><span class="default-exclusions-label">default exclusions?</span><input type="checkbox" class="input-default-exclusions"></div>
-      <textarea name="exclusions" id="exclusions-input" class="exclusions-area" rows="5"></textarea>
-    </div> -->
-    <div class="price-wrapper">
-      <div class="label">2 Price</div>
-      <span class="price-input-wrapper">$ <input type="text" placeholder="bid amount" id="price-input" class="price-input"></span>
-    </div>
-    <div class="save-wrapper">
-      <div class="label">3 Select Proposal Save Location</div>
-      <button id="save-location-btn" class="save-button">select save location</button>
-      <p class="location-label" id="save-location-label"></p>
-    </div>
-    <div class="file-wrapper">
-      <div class="label">4 Select CSV from Bluebeam</div>
-      <button id="open-file-btn" class="csv-button">select csv</button>
-      <p class="location-label" id="generation-success-label"></p>
-    </div>
-    <div id="console"></div>
-    <div class="version"><span class="version-label">version:</span> 1.0.3</div>
+
+    <div class="version"><span class="version-label">version:</span> 1.0.4</div>
   </body>
   <script src="./renderer.js"></script>
 </html>

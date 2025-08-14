@@ -159,3 +159,27 @@ html {
 .input-default-exclusions:hover {
     cursor: pointer;
 }
+
+.settings-view-wrapper {
+    display: grid;
+    grid-template-columns: 50% 50%;
+}
+
+.settings-label {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.settings-input {
+
+}
+
+.disabled-input {
+    opacity: 50%;
+}
+
+.disabled-label {
+    opacity: 50%;
+    text-decoration: line-through;
+}

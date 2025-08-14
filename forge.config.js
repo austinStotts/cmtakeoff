@@ -5,7 +5,8 @@ const { options } = require('pdfkit');
 module.exports = {
   packagerConfig: {
     extraResource: [
-      './images'
+      './images',
+      './saves'
     ],
     icon: __dirname + 'images/logo',
     asar: true,

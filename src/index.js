@@ -5,9 +5,12 @@ const { parse } = require("csv-parse");
 const open = require('open');
 const docx = require("docx");
 
+let isSuccess = true;
 
-
-let devMode = true;
+let devMode = false;
+if(process.env.TERM_PROGRAM == 'vscode') {
+  devMode = true;
+}
 
 
 let randomsort = (a, b) => 0.5 - Math.random();
@@ -43,7 +46,7 @@ let formatMeasurement = (row) => {
 
 let rows = [];
 
-let calculateProposal = (file, details, saveLocation, callback) => {
+let calculateProposal = (file, details, saveLocation, settings, error, callback) => {
   console.log("file: ", file);
   console.log("details: ", details);
   console.log("saveLocation: ", saveLocation);
@@ -54,7 +57,9 @@ let calculateProposal = (file, details, saveLocation, callback) => {
         rows.push(row);
       })
       .on("end", () => {
+        isSuccess = true;
         console.log("input successful");
+        console.log(settings);
         let columns = rows.shift();
         columns[0] = columns[0].slice(1);
         console.log(columns);
@@ -70,17 +75,19 @@ let calculateProposal = (file, details, saveLocation, callback) => {
           }
           // if a material is given add that to the item key
           // scope
+          // console.log([Number(row['Measurement']), row['Measurement Unit']]);
           if(scope[row['Space']]) { // room exists
             if(scope[row['Space']]['items'][`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`]) { // room and item exist
-              scope[row['Space']]['items'][`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement = scope[row['Space']]['items'][`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement + formatMeasurement(row).measurement;
+              // console.log(scope[row['Space']]['items'][`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement);
+              scope[row['Space']]['items'][`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement = scope[row['Space']]['items'][`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement + Number(row['Measurement']);
               if(row['Page Label'] && !checkPages(scope[row['Space']]['pages'], row['Page Label'])) { scope[row['Space']]['pages'].push(row['Page Label']) }
             } else { // room exists but item does not exist
-              scope[row['Space']]['items'][`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`] = formatMeasurement(row);
+              scope[row['Space']]['items'][`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`] = { measurement: Number(row['Measurement']), unit: row['Measurement Unit'] };
               if(row['Page Label'] && !checkPages(scope[row['Space']]['pages'], row['Page Label'])) { scope[row['Space']]['pages'].push(row['Page Label']) }
             }
           } else { // room does not exist
             scope[row['Space']] = {items: {}, pages: []};
-            scope[row['Space']]['items'][`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`] = formatMeasurement(row);
+            scope[row['Space']]['items'][`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`] = { measurement: Number(row['Measurement']), unit: row['Measurement Unit'] };
             if(row['Page Label'] && !checkPages(scope[row['Space']]['pages'], row['Page Label'])) { scope[row['Space']]['pages'].push(row['Page Label']) }
           }
           // totals
@@ -131,11 +138,11 @@ let calculateProposal = (file, details, saveLocation, callback) => {
         let rooms = Object.keys(scope);
         for(let room = 0; room < rooms.length; room++) {
           let items = Object.keys(scope[rooms[room]].items);
-          console.log(scope[rooms[room]].pages)
+          // console.log(scope[rooms[room]].pages)
           scopelist.push(new docx.Paragraph({
             children: [
               new docx.TextRun({
-                text: `${rooms[room]} ${scope[rooms[room]].pages ? 'as seen on (' + scope[rooms[room]].pages.join(" ") + ')' : ''}`,
+                text: `${rooms[room]} ${scope[rooms[room]].pages.length > 0 ? 'as seen on (' + scope[rooms[room]].pages.join(" ") + ')' : ''}`,
                 bold: true,
                 size: 24,
               })
@@ -244,12 +251,12 @@ let calculateProposal = (file, details, saveLocation, callback) => {
 
         let conditionslist = [];
         let conditionsText = [
-          `1. Upon acceptance, as evidenced by signatures of the purchaser and an officer of our company, this proposal becomes a valid contract.  If other contract forms are used, this proposal automatically becomes a part of any contract into which we might enter for the work covered – whether or not the contract stated that wood work will be a defined in this quotation.`,
+          `1. Upon acceptance, as evidenced by signatures of the purchaser and an officer of our company, this proposal becomes a valid contract.  If other contract forms are used, this proposal automatically becomes a part of any contract into which we might enter for the work covered – whether or not the contract stated that woodwork will be a defined in this quotation.`,
           `2. Proposal is good for 14 days.`,
           `3. Work in progress cannot be changed without a written change order.`,
           `4. No back charges will be allowed without our written consent.`,
           `5. Clerical errors subject to correction.`,
-          `6. Required delivery dates shall be given in writing.  Should job be unable to take delivery at scheduled time, we shall be entitled to payment for such materials upon presentation of proper certification and insurance.
+          `6. Required delivery dates shall be given in writing.  Should job be unable to take delivery at the scheduled time, we shall be entitled to payment for such materials upon presentation of proper certification and insurance.
           `
         ]
 
@@ -303,7 +310,7 @@ let calculateProposal = (file, details, saveLocation, callback) => {
 
         let importantlist2 = []
         let importantText2 = [
-          `(B.)  Flush plywood panel work furnished in commercial size panels unless shop work is required on edges.`,
+          `(B.)  Flush plywood panel work is furnished in commercial size panels unless shop work is required on edges.`,
           `(C.)  Terms are net, due the fifteenth of the month following requisition of materials. We reserve the right to stop delivery of materials if payments are not made when due. Payments not made in full by the by the 26th proximal will subject the balance to a finance charge of 1.5% per calendar month or fraction thereof until paid.`,
           `(D.)  All contracts are contingent upon strikes, breakdowns, fires, or other causes beyond our control and are accepted subject to approved credit.
           `,
@@ -766,6 +773,144 @@ let calculateProposal = (file, details, saveLocation, callback) => {
                 new docx.Paragraph({
                   children: [
                     new docx.TextRun({
+                      text: "",
+                      size: 24,
+                    })
+                  ],
+                }),
+                new docx.Paragraph({
+                  children: [
+                    new docx.TextRun({
+                      text: "Respectfully submitted:",
+                      size: 24,
+                    })
+                  ],
+                }),
+                new docx.Paragraph({
+                  children: [
+                    new docx.TextRun({
+                      text: "",
+                      size: 24,
+                    })
+                  ],
+                }),
+                new docx.Paragraph({
+                  children: [
+                    new docx.TextRun({
+                      text: "CUSTOM MILLWORK                                          Accepted:                      ",
+                      size: 24,
+                    })
+                  ],
+                  border: {
+                    bottom: {
+                      color: 'auto',
+                      style: 'single',
+                      size: 1,
+                      space: 1,
+                    }
+                  },
+                  indent: {
+                    right: docx.convertInchesToTwip(1)
+                  }
+                }),
+                new docx.Paragraph({
+                  children: [
+                    new docx.TextRun({
+                      text: "",
+                      size: 24,
+                    })
+                  ],
+                }),
+                new docx.Paragraph({
+                  children: [
+                    new docx.TextRun({
+                      text: "",
+                      size: 18,
+                    })
+                  ],
+                }),
+                new docx.Paragraph({
+                  children: [
+                    new docx.TextRun({
+                      text: "By:                                                                            By:                      ",
+                      size: 24,
+                    })
+                  ],
+                  border: {
+                    bottom: {
+                      color: 'auto',
+                      style: 'single',
+                      size: 1,
+                      space: 1,
+                    }
+                  },
+                  indent: {
+                    right: docx.convertInchesToTwip(1)
+                  }
+                }),
+                new docx.Paragraph({
+                  children: [
+                    new docx.TextRun({
+                      text: `                                              ${settings.info.user ? settings.info.user == 'guest' ? 'cm estimator' : settings.info.user : 'cm estimator'}`,
+                      size: 18,
+                    })
+                  ],
+                }),
+                new docx.Paragraph({
+                  children: [
+                    new docx.TextRun({
+                      text: "",
+                      size: 18,
+                    })
+                  ],
+                }),
+                new docx.Paragraph({
+                  children: [
+                    new docx.TextRun({
+                      text: "TITLE:            Project Estimator                              TITLE:",
+                      size: 24,
+                    })
+                  ],
+                  border: {
+                    bottom: {
+                      color: 'auto',
+                      style: 'single',
+                      size: 1,
+                      space: 1,
+                    }
+                  },
+                  indent: {
+                    right: docx.convertInchesToTwip(1)
+                  }
+                }),
+                new docx.Paragraph({
+                  children: [
+                    new docx.TextRun({
+                      text: "",
+                      size: 24,
+                    })
+                  ],
+                }),
+                new docx.Paragraph({
+                  children: [
+                    new docx.TextRun({
+                      text: "UPON ACCEPTANCE OF THIS PROPOSAL, PLEASE SIGN AND RETURN AS SOON AS POSSIBLE.",
+                      size: 24,
+                      bold: true,
+                    })
+                  ],
+                }),
+                new docx.Paragraph({
+                  children: [
+                    new docx.TextRun({
+                      text: "",
+                      size: 24,
+                    })
+                  ],
+                }),
+                new docx.Paragraph({
+                  children: [
+                    new docx.TextRun({
                       text: '(A.) IMPORTANT: The following items are considered "Architectural',
                       size: 24,
                       bold: true,
@@ -775,7 +920,7 @@ let calculateProposal = (file, details, saveLocation, callback) => {
                 new docx.Paragraph({
                   children: [
                     new docx.TextRun({
-                      text: 'Woodwork" and do not forma part of the proposal unless noted',
+                      text: 'Woodwork" and do not form a part of the proposal unless noted',
                       size: 24,
                       bold: true,
                     })
@@ -808,41 +953,58 @@ let calculateProposal = (file, details, saveLocation, callback) => {
 
 
         docx.Packer.toBuffer(doc).then((buffer) => {
-          fs.writeFileSync(saveLocation, buffer);
+          try {
+            fs.writeFileSync(saveLocation, buffer);
+          } catch {
+            isSuccess = false;
+            error('could not save document... make sure the file you are trying to overwrite is closed\n\nplease reselect the csv to try again...', '0001');
+            // console.log("could not save document... make sure the file being overwritten is closed - please reselect the csv to try again...");
+            // return
+          }
         });
 
 
         // save a second document of the same name + '-totals'
         // show totals for each item in the job
-
-        let saveLocation2 = saveLocation.split(".")[0] + "-totals.pdf";
-        const doc2 = new PDFDocument({ size: "LETTER", margins: { top: 25, bottom: 25, left: 50, right: 50 } });
-        doc2.pipe(fs.createWriteStream(saveLocation2));
-        doc2.fontSize(10);
-        doc2.font("Courier-Bold");
-        doc2.text(details.job);
-        doc2.text(saveLocation2);
-        doc2.font("Courier");
-        let data = [];
-        for (let [item, value] of Object.entries(totals)) {
-          let row = [item, value.unit == `ft' in"` ? "LF" : value.unit == `ft` ? "LF" : value.unit, Math.ceil(value.measurement)];
-          data.push(row);
+        if(isSuccess) {
+          let saveLocation2 = saveLocation.split('.docx')[0] + "-totals.pdf";
+          const doc2 = new PDFDocument({ size: "LETTER", margins: { top: 25, bottom: 25, left: 50, right: 50 } });
+          doc2.pipe(fs.createWriteStream(saveLocation2));
+          doc2.fontSize(10);
+          doc2.font("Courier-Bold");
+          let date = new Date();
+          let dateStr = ` ${date.getMonth()+1} / ${date.getDate()} / ${date.getFullYear()}`;
+          doc2.text(details.job + dateStr);
+          doc2.text(saveLocation2);
+          doc2.font("Courier");
+          let data = [];
+          for (let [item, value] of Object.entries(totals)) {
+            let row = [item, value.unit == `ft' in"` ? "LF" : value.unit == `ft` ? "LF" : value.unit, Math.ceil(value.measurement)];
+            data.push(row);
+          }
+          data.sort();
+          doc2.table({
+            data,
+            columnStyles: ["*", 50, 50],
+          })
+  
+          doc2.end();
+          setTimeout(() => {
+            open.openApp(saveLocation, { app: { name: 'word' } });
+          }, 2000)
         }
-        data.sort();
-        doc2.table({
-          data,
-          columnStyles: ["*", 50, 50],
-        })
-        doc2.end();
-        setTimeout(() => {
-          open.openApp(saveLocation, { app: { name: 'word' } });
-        }, 2000)
+        callback(isSuccess);
         scope = {};
         totals = {};
-        callback();
+        rows = [];
+        isSuccess = true;
+        return
       });
   } else {
+    error('invalid file... make sure you selected the correct csv and are saving in a valid location', '0002');
+    callback(false);
     console.log("cannot parse csv - no file location");
+    return
   }
 };
 
