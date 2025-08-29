@@ -5,6 +5,8 @@ const { parse } = require("csv-parse");
 const open = require('open');
 const docx = require("docx");
 
+let generateDoc = false;
+let generateTotals = false;
 let isSuccess = true;
 
 let devMode = false;
@@ -24,6 +26,16 @@ let checkPages = (currentPages, page) => {
   return hasPage;
 }
 
+function printValues(obj) {
+    for (var key in obj) {
+        if (typeof obj[key] === "object") {
+            printValues(obj[key]);   
+        } else {
+            console.log(obj[key]);    
+        }
+    }
+}
+
 let formatMeasurement = (row) => {
   if(row['Depth'] > 0.01) {
     return { measurement: Number(row['Measurement']) * (row['Depth Unit'] == 'in' ? Number(row['Depth']) / 12 : Number(row['Depth'])), unit: 'sqft' };
@@ -32,6 +44,9 @@ let formatMeasurement = (row) => {
   }
 }
 
+// get the proposal generator to use the new job object
+// change the front end to have clearer instructions
+
 // [
 //   'Space',            'Measurement',
 //   'Measurement Unit', 'Subject',
@@ -39,7 +54,8 @@ let formatMeasurement = (row) => {
 //   'Length Unit',      'Depth',
 //   'Depth Unit',       'Label',
 //   'Room Multi',       'Top Footage',
-//   'Total Footages',   'Material Type'
+//   'Total Footages',   'Material',
+//   'Group',
 // ]
 
 
@@ -63,8 +79,12 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
         let columns = rows.shift();
         columns[0] = columns[0].slice(1);
         console.log(columns);
-        let scope = {};
-        let totals = {};
+        let toolKey = 'Subject';
+        let totals = { groups: {} };
+        let job = { groups: {} };
+        // let scope = {};
+        // let totals = {};
+        // let groups = new Map;
         // This loop organizes the raw csv data into rooms and items
         // it is mandatory for the csv columns to be in the correct order
         // scope - measurement - label - subject - special comments
@@ -76,42 +96,235 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
           // if a material is given add that to the item key
           // scope
           // console.log([Number(row['Measurement']), row['Measurement Unit']]);
-          if(scope[row['Space']]) { // room exists
-            if(scope[row['Space']]['items'][`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`]) { // room and item exist
-              // console.log(scope[row['Space']]['items'][`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement);
-              scope[row['Space']]['items'][`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement = scope[row['Space']]['items'][`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement + Number(row['Measurement']);
-              if(row['Page Label'] && !checkPages(scope[row['Space']]['pages'], row['Page Label'])) { scope[row['Space']]['pages'].push(row['Page Label']) }
-            } else { // room exists but item does not exist
-              scope[row['Space']]['items'][`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`] = { measurement: Number(row['Measurement']), unit: row['Measurement Unit'] };
-              if(row['Page Label'] && !checkPages(scope[row['Space']]['pages'], row['Page Label'])) { scope[row['Space']]['pages'].push(row['Page Label']) }
+          // if(scope[row['Space']]) { // room exists
+          //   if(scope[row['Space']]['items'][`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`]) { // room and item exist
+          //     // console.log(scope[row['Space']]['items'][`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement);
+          //     scope[row['Space']]['items'][`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement = scope[row['Space']]['items'][`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement + Number(row['Measurement']);
+          //     if(row['Page Label'] && !checkPages(scope[row['Space']]['pages'], row['Page Label'])) { scope[row['Space']]['pages'].push(row['Page Label']) }
+          //   } else { // room exists but item does not exist
+          //     scope[row['Space']]['items'][`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`] = { measurement: Number(row['Measurement']), unit: row['Measurement Unit'] };
+          //     if(row['Page Label'] && !checkPages(scope[row['Space']]['pages'], row['Page Label'])) { scope[row['Space']]['pages'].push(row['Page Label']) }
+          //   }
+          // } else { // room does not exist
+          //   scope[row['Space']] = {items: {}, pages: []};
+          //   scope[row['Space']]['items'][`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`] = { measurement: Number(row['Measurement']), unit: row['Measurement Unit'] };
+          //   if(row['Page Label'] && !checkPages(scope[row['Space']]['pages'], row['Page Label'])) { scope[row['Space']]['pages'].push(row['Page Label']) }
+          // }
+
+          if(!row['Group']) { row['Group'] = 'Base Bid' }
+
+          // if(job.groups[row['Price Grouping']]) { // does the Price Grouping already exist?
+          //   job.groups[row['Price Grouping']].scope.pages.push(row['Page Label']);
+          //   job.groups[row['Price Grouping']].scope.items.push({
+          //     name: row[toolKey],
+          //     measurement: Number(row['Measurement']),
+          //     unit: row['Measurement Unit'],
+          //     material: row['Material Type'],
+          //     depth: row['Depth'] || null,
+          //     groupName: row['Price Grouping'],
+          //     spaceName: row['Space'],
+          //     excluded: false
+          //   })
+          // } else {
+          //   job.groups[row['Price Grouping']] = {
+          //     name: row['Price Grouping'], 
+          //     scope: {
+          //       rooms: {}
+          //     }
+          //   }
+          // }
+
+          if(job.groups[row['Group']]) {
+            if(job.groups[row['Group']].rooms[row['Space']]) {
+              if(job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`]) { // old item
+                job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`].measurement += Number(row['Measurement']);
+              } else { // new item
+                job.groups[row['Group']].rooms[row['Space']].pages.push(row['Page Label']);
+                job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`] = {
+                  name: row[toolKey],
+                  measurement: Number(row['Measurement']),
+                  unit: row['Measurement Unit'],
+                  material: row['Material'] || '*',
+                  depth: row['Depth'] || null,
+                  groupName: row['Group'],
+                  spaceName: row['Space'],
+                  excluded: false
+                }
+              }
+            } else { // new space
+              job.groups[row['Group']].rooms[row['Space']] = { items: {}, pages: [] };
+              job.groups[row['Group']].rooms[row['Space']].pages.push(row['Page Label']);
+              job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`] = {
+                name: row[toolKey],
+                measurement: Number(row['Measurement']),
+                unit: row['Measurement Unit'],
+                material: row['Material'] || '*',
+                depth: row['Depth'] || null,
+                groupName: row['Group'],
+                spaceName: row['Space'],
+                excluded: false
+              }
             }
-          } else { // room does not exist
-            scope[row['Space']] = {items: {}, pages: []};
-            scope[row['Space']]['items'][`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`] = { measurement: Number(row['Measurement']), unit: row['Measurement Unit'] };
-            if(row['Page Label'] && !checkPages(scope[row['Space']]['pages'], row['Page Label'])) { scope[row['Space']]['pages'].push(row['Page Label']) }
+          } else { // new group
+            job.groups[row['Group']] = { rooms: {} };
+            job.groups[row['Group']].rooms[row['Space']] = { items: {}, pages: [] };
+            job.groups[row['Group']].rooms[row['Space']].pages.push(row['Page Label']);
+            job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`] = {
+              name: row[toolKey],
+              measurement: Number(row['Measurement']),
+              unit: row['Measurement Unit'],
+              material: row['Material'] || '*',
+              depth: row['Depth'] || null,
+              groupName: row['Group'],
+              spaceName: row['Space'],
+              excluded: false
+            }
           }
+
+
+          // need to go back and add spaces
+          // skipped past them the first time
+          // job > groups > spaces > items
+          // the totals can just ignore the space
+
+
+          
+
+          // console.log(totals);
+          
+
+          
+          // console.log(JSON.stringify(job))
+
+          // printValues(job)
           // totals
 
-          let roomarray = row['Space'].split(" ");
-          let n = 1;
-          if (roomarray[0].toLowerCase().includes("x)")) {
-            n = roomarray[0].slice(1, roomarray[0].length - 2);
-          } else if (roomarray[0].toLowerCase().includes("(x")) {
-            n = roomarray[0].slice(2, roomarray[0].length - 1);
-          } else if (roomarray[roomarray.length - 1].toLowerCase().includes("x)")) {
-            n = roomarray[roomarray.length - 1].slice(1, roomarray[roomarray.length - 1].length - 2);
-          } else if (roomarray[roomarray.length - 1].toLowerCase().includes("(x")) {
-            n = roomarray[roomarray.length - 1].slice(2, roomarray[roomarray.length - 1].length - 1);
-          } else {
-            // none
-          }
-          if(totals[`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`]) {
-            totals[`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement = totals[`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement + (formatMeasurement(row).measurement * n);
-          } else {
-            totals[`${row['Subject']}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`] = { measurement: formatMeasurement(row).measurement * n, unit: formatMeasurement(row).unit };
-          }
+
+          // if(totals[`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`]) {
+          //   if(row['Price Grouping']) {
+          //     if(row['Price Grouping'] == totals[`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].group) {
+          //       totals[`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement = totals[`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement + (formatMeasurement(row).measurement * n);
+          //     } else {
+
+          //     }
+          //   } else {
+          //     totals[`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement = totals[`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement + (formatMeasurement(row).measurement * n);
+          //   }
+          // } else {
+          //   totals[`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`] = { measurement: formatMeasurement(row).measurement * n, unit: formatMeasurement(row).unit, group: row['Price Grouping'] };
+          // }
+          // groups.set(row['Price Grouping']);
+
+          // okay so this needs to be reworked again
+          // using the key is not enough
+          // the group should not change the item but the material should
+          // so maybe it doesn't need to be totally reworked
+          //
+          // 
+
+          // new job object shape
+          // check group first to sort
+          // give the job object to the totals and use the already group object
+          // let job = {
+          //   groups: {
+          //     "Base Bid": {
+          //         rooms: {
+          //           "breakroom": {
+          //             items: [
+          //               {
+          //                 name: 'base cabinet',
+          //                 measurement: 8,
+          //                 unit: 'lf',
+          //                 excluded: false,
+          //                 groupName: 'Base Bid',
+          //                 depth: null,
+          //               },
+          //               {
+          //                 name: 'base cabinet',
+          //                 measurement: 8,
+          //                 unit: 'lf',
+          //                 excluded: false,
+          //                 groupName: 'Base Bid',
+          //                 depth: null,
+          //               },
+          //               {
+          //                 name: 'base cabinet',
+          //                 measurement: 8,
+          //                 unit: 'lf',
+          //                 excluded: false,
+          //                 groupName: 'Base Bid',
+          //                 depth: null,
+          //               },
+          //               {
+          //                 name: 'base cabinet',
+          //                 measurement: 8,
+          //                 unit: 'lf',
+          //                 excluded: false,
+          //                 groupName: 'Base Bid',
+          //                 depth: null,
+          //               },
+          //             ],
+          //             pages: [A101],
+          //           },
+          //         },
+                
+          //     }
+          //   }
+          // }
+
 
         }
+
+          Object.keys(job.groups).forEach(group => {
+            // each group
+            if(!totals.groups[group]) {
+              totals.groups[group] = { items: {} }
+            }
+
+            Object.keys(job.groups[group].rooms).forEach(room => {
+              // each room
+              let roomarray = room.split(" ");
+              let n = 1;
+              if (roomarray[0].toLowerCase().includes("x)")) {
+                n = roomarray[0].slice(1, roomarray[0].length - 2);
+              } else if (roomarray[0].toLowerCase().includes("(x")) {
+                n = roomarray[0].slice(2, roomarray[0].length - 1);
+              } else if (roomarray[roomarray.length - 1].toLowerCase().includes("x)")) {
+                n = roomarray[roomarray.length - 1].slice(1, roomarray[roomarray.length - 1].length - 2);
+              } else if (roomarray[roomarray.length - 1].toLowerCase().includes("(x")) {
+                n = roomarray[roomarray.length - 1].slice(2, roomarray[roomarray.length - 1].length - 1);
+              } else {
+                // none
+              }
+              Object.keys(job.groups[group].rooms[room].items).forEach(item => {
+                // each item
+                if(totals.groups[group][item]) { // old item
+                  console.log("MATCH!")
+                  totals.groups[group].items[item].measurement += job.groups[group].rooms[room].items[item].measurement * n;
+                } else { // new item
+                  totals.groups[group].items[item] = { measurement: job.groups[group].rooms[room].items[item].measurement * n, unit: job.groups[group].rooms[room].items[item].unit }
+                }
+              })
+            }) 
+
+          })
+
+          console.log(totals)
+
+          Object.keys(totals.groups).forEach(key => {
+            console.log('\n*** *** *** *** *** *** *** ***', key);
+            Object.keys(totals.groups[key]).forEach(item => {
+              console.log(item, ':', totals.groups[key][item])
+            })
+          })
+
+          // Object.keys(job.groups).forEach(key => {
+          //   console.log('\n*** *** *** *** *** *** *** ***', key);
+          //   Object.keys(job.groups[key]).forEach(item => {
+          //     console.log(item, ':', job.groups[key][item])
+          //   })
+          // })
+
         // before the scope is used in the document all numbers are rounded up
         // roundall(scope);
         // console.log(scope);
@@ -125,6 +338,13 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
         // })
         // console.log(scope);
         // console.log(totals);
+        // console.log(groups)
+
+        // Object.keys(job.groups).forEach(key => {
+        //   console.log('\n\n');
+        //   console.log(key);
+        //   console.log(job.groups[key].scope.items);
+        // })
 
         let awiimg = '';
         if(devMode) {
@@ -135,67 +355,71 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
 
         let scopelist = [];
 
-        let rooms = Object.keys(scope);
-        for(let room = 0; room < rooms.length; room++) {
-          let items = Object.keys(scope[rooms[room]].items);
-          // console.log(scope[rooms[room]].pages)
-          scopelist.push(new docx.Paragraph({
-            children: [
-              new docx.TextRun({
-                text: `${rooms[room]} ${scope[rooms[room]].pages.length > 0 ? 'as seen on (' + scope[rooms[room]].pages.join(" ") + ')' : ''}`,
-                bold: true,
-                size: 24,
-              })
-            ],
-            numbering: {
-              reference: "my-numbering",
-              level: 0,
-            }
-          }));
+        Object.keys(job.groups).forEach(group => {
+          let rooms = Object.keys(job.groups[group].scope);
+          for(let room = 0; room < rooms.length; room++) {
+            let items = Object.keys(scope[rooms[room]].items);
+            // console.log(scope[rooms[room]].pages)
+            scopelist.push(new docx.Paragraph({
+              children: [
+                new docx.TextRun({
+                  text: `${rooms[room]} ${scope[rooms[room]].pages.length > 0 ? 'as seen on (' + scope[rooms[room]].pages.join(", ") + ')' : ''}`,
+                  bold: true,
+                  size: 24,
+                })
+              ],
+              numbering: {
+                reference: "my-numbering",
+                level: 0,
+              }
+            }));
 
-          for(let item = 0; item < items.length; item++) {
-            if(scope[rooms[room]].items[items[item]].unit == 'Count') {
-              scopelist.push(new docx.Paragraph({
-                children: [
-                  new docx.TextRun({
-                    text: `(${Math.ceil(scope[rooms[room]].items[items[item]].measurement)}X) ${items[item]}`,
-                    size: 24,
-                  })
-                ],
-                numbering: {
-                  reference: "my-bullets",
-                  level: 0,
-                }
-              }));
-            } else if (scope[rooms[room]].items[items[item]].unit == 'sqft') {
-              scopelist.push(new docx.Paragraph({
-                children: [
-                  new docx.TextRun({
-                    text: `${Math.ceil(scope[rooms[room]].items[items[item]].measurement)} SQFT of ${items[item]}`,
-                    size: 24,
-                  })
-                ],
-                numbering: {
-                  reference: "my-bullets",
-                  level: 0,
-                }
-              }));
-            } else {
-              scopelist.push(new docx.Paragraph({
-                children: [
-                  new docx.TextRun({
-                    text: `${Math.ceil(scope[rooms[room]].items[items[item]].measurement)} LF of ${items[item]}`,
-                    size: 24,
-                  })
-                ],
-                numbering: {
-                  reference: "my-bullets",
-                  level: 0,
-                }
-              }));
+            for(let item = 0; item < items.length; item++) {
+              if(scope[rooms[room]].items[items[item]].unit == 'Count') {
+                scopelist.push(new docx.Paragraph({
+                  children: [
+                    new docx.TextRun({
+                      text: `(${Math.ceil(scope[rooms[room]].items[items[item]].measurement)}X) ${items[item]}`,
+                      size: 24,
+                    })
+                  ],
+                  numbering: {
+                    reference: "my-bullets",
+                    level: 0,
+                  }
+                }));
+              } else if (scope[rooms[room]].items[items[item]].unit == 'sqft') {
+                scopelist.push(new docx.Paragraph({
+                  children: [
+                    new docx.TextRun({
+                      text: `${Math.ceil(scope[rooms[room]].items[items[item]].measurement)} SQFT of ${items[item]}`,
+                      size: 24,
+                    })
+                  ],
+                  numbering: {
+                    reference: "my-bullets",
+                    level: 0,
+                  }
+                }));
+              } else {
+                scopelist.push(new docx.Paragraph({
+                  children: [
+                    new docx.TextRun({
+                      text: `${Math.ceil(scope[rooms[room]].items[items[item]].measurement)} LF of ${items[item]}`,
+                      size: 24,
+                    })
+                  ],
+                  numbering: {
+                    reference: "my-bullets",
+                    level: 0,
+                  }
+                }));
+              }
             }
           }
-        }
+        })
+
+
 
 
 
@@ -701,6 +925,8 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                     })
                   ],
                 }),
+                // HERE
+                // MAKE n GROUPS AND LIST EACH WITH ITS OWN PRICE
                 ...scopelist,
                 new docx.Paragraph({
                   children: [
@@ -710,6 +936,8 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                     })
                   ],
                 }),
+
+
                 new docx.Paragraph({
                   children: [
                     new docx.TextRun({
@@ -952,21 +1180,24 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
         // doc.sections.push({properties: {}, children: [ new docx.Paragraph({ text: "test" }) ]})
 
 
-        docx.Packer.toBuffer(doc).then((buffer) => {
-          try {
-            fs.writeFileSync(saveLocation, buffer);
-          } catch {
-            isSuccess = false;
-            error('could not save document... make sure the file you are trying to overwrite is closed\n\nplease reselect the csv to try again...', '0001');
-            // console.log("could not save document... make sure the file being overwritten is closed - please reselect the csv to try again...");
-            // return
-          }
-        });
+        if(generateDoc) {
+          docx.Packer.toBuffer(doc).then((buffer) => {
+            try {
+              fs.writeFileSync(saveLocation, buffer);
+            } catch {
+              isSuccess = false;
+              error('could not save document... make sure the file you are trying to overwrite is closed\n\nplease reselect the csv to try again...', '0001');
+              // console.log("could not save document... make sure the file being overwritten is closed - please reselect the csv to try again...");
+              // return
+            }
+          });
+        }
+
 
 
         // save a second document of the same name + '-totals'
         // show totals for each item in the job
-        if(isSuccess) {
+        if(isSuccess && generateTotals) {
           let saveLocation2 = saveLocation.split('.docx')[0] + "-totals.pdf";
           const doc2 = new PDFDocument({ size: "LETTER", margins: { top: 25, bottom: 25, left: 50, right: 50 } });
           doc2.pipe(fs.createWriteStream(saveLocation2));
@@ -976,22 +1207,34 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
           let dateStr = ` ${date.getMonth()+1} / ${date.getDate()} / ${date.getFullYear()}`;
           doc2.text(details.job + dateStr);
           doc2.text(saveLocation2);
-          doc2.font("Courier");
-          let data = [];
-          for (let [item, value] of Object.entries(totals)) {
-            let row = [item, value.unit == `ft' in"` ? "LF" : value.unit == `ft` ? "LF" : value.unit, Math.ceil(value.measurement)];
-            data.push(row);
-          }
-          data.sort();
-          doc2.table({
-            data,
-            columnStyles: ["*", 50, 50],
+          Object.keys(totals.groups).forEach((group) => {
+            doc2.text(" ");
+            doc2.font("Courier-Bold");
+            doc2.text(`${group}`);
+            let data = [];
+            Object.keys(totals.groups[group]).forEach((name) => {
+              let value = totals.groups[group][name];
+              // console.log(value)
+              
+              let row = [name, value.unit == `ft' in"` ? "LF" : value.unit == `ft` ? "LF" : value.unit, Math.ceil(value.measurement)];
+              // console.log(row)
+              data.push(row);
+
+            })
+            data.sort();
+            doc2.font("Courier");
+            doc2.table({
+              data,
+              columnStyles: ["*", 50, 50],
+            })
           })
   
           doc2.end();
-          setTimeout(() => {
-            open.openApp(saveLocation, { app: { name: 'word' } });
-          }, 2000)
+          if(generateDoc) {
+            setTimeout(() => {
+              open.openApp(saveLocation, { app: { name: 'word' } });
+            }, 2000)
+          }
         }
         callback(isSuccess);
         scope = {};

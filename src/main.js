@@ -53,7 +53,7 @@ let handleSaveLocation = (event) => {
       console.log('got the file!')
       console.log(file.filePath.toString());
       saveLocation = file.filePath.toString();
-      mainWindow.webContents.send('save-location-success', true, saveLocation);
+      webContents.send('save-location-success', true, saveLocation);
     }
   }).catch(err => {
       console.log(err);

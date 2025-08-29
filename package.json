@@ -1,6 +1,6 @@
 {
   "name": "cmtakeoff",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Custom Millwork proposal generation tool",
   "main": "src/main.js",
   "scripts": {
@@ -24,6 +24,7 @@
     "csv": "^6.4.1",
     "docx": "^9.5.1",
     "electron-squirrel-startup": "^1.0.1",
+    "npm": "^11.5.2",
     "open": "^10.2.0",
     "pdfkit": "^0.17.1",
     "update-electron-app": "^3.1.1"
