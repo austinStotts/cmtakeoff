@@ -15,28 +15,35 @@ const createWindow = () => {
   mainWindow = new BrowserWindow({
     width: 400,
     height: 600,
-    icon: process.resourcesPath + "/images/logo.png",
+    icon: process.resourcesPath + "../images/logo.png",
+    
     webPreferences: {
       preload: path.join(__dirname, 'preload.js')
     }
   })
   mainWindow.loadFile('src/index.html');
+  mainWindow.menuBarVisible = false;
 }
 
 let saveLocation = "";
+let csvLocation = "";
 
-let openFile = (event, details) => {
+let handleStart = (event, details) => {
+  let callback = (success) => {
+    console.log('good job!');
+  };
+  csvMethods.calculateProposal(csvLocation, details, saveLocation, settings, handleError, callback);
+}
+
+let openFile = (event) => {
   console.log("opening file")
   dialog.showOpenDialog({properties: ['openFile']})
   .then(result =>  {
-    console.log(result.canceled)
-    let callback = (success) => {
-      mainWindow.webContents.send('csv-location-success', success, saveLocation);
-    }
-    console.log('setting in main at line 36', settings);
-    csvMethods.calculateProposal(result.filePaths[0], details, saveLocation, settings, handleError, callback);
+    console.log(result.canceled);
+    csvLocation = result.filePaths[0];
+    mainWindow.webContents.send('csv-location-success', true, csvLocation);
   }).catch(err => {
-    console.log(err)
+    console.log(err);
   })
 }
 
@@ -53,7 +60,7 @@ let handleSaveLocation = (event) => {
       console.log('got the file!')
       console.log(file.filePath.toString());
       saveLocation = file.filePath.toString();
-      webContents.send('save-location-success', true, saveLocation);
+      mainWindow.webContents.send('save-location-success', true, saveLocation);
     }
   }).catch(err => {
       console.log(err);
@@ -87,6 +94,7 @@ app.whenReady().then(() => {
   ipcMain.on('save-location', handleSaveLocation);
   ipcMain.on('get-settings', handleGetSettings);
   ipcMain.on('set-settings', handleSetSettings);
+  ipcMain.on('start', handleStart);
 })
 
 app.on('window-all-closed', () => {

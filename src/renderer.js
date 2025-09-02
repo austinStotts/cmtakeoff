@@ -1,8 +1,11 @@
 // I removed the qualifications and exclusions textboxes for the sake of keeping things as simple as possible to start
 
+let save_ready = false;
+let csv_ready = false;
+
 let con = document.getElementById("console");
 
-
+let startBTN = document.getElementById('start-btn');
 
 let saveBTN = document.getElementById('save-location-btn');
 let saveLabel = document.getElementById('save-location-label');
@@ -12,19 +15,19 @@ let jobinput = document.getElementById("job-input");
 let dateinput = document.getElementById("date-input");
 // let qualificationsinput = document.getElementById("qualifications-input");
 // let exclusionsinput = document.getElementById("exclusions-input");
-let priceinput = document.getElementById("price-input");
+// let priceinput = document.getElementById("price-input");
 
 let contractorvalue = "";
 let jobvalue = "";
 let datevalue = "";
 // let qualificationsvalue = "";
 // let exclusionsvalue = "";
-let pricevalue = "";
+// let pricevalue = "";
 
 contractorinput.addEventListener("change", (e) => { contractorvalue = e.target.value });
 jobinput.addEventListener("change", (e) => { jobvalue = e.target.value });
 dateinput.addEventListener("change", (e) => { datevalue = e.target.value });
-priceinput.addEventListener("change", (e) => { pricevalue = e.target.value });
+// priceinput.addEventListener("change", (e) => { pricevalue = e.target.value });
 
 document.getElementById("save-location-btn").addEventListener("click", (e) => {
     window.electronAPI.saveLocation();
@@ -33,28 +36,18 @@ document.getElementById("save-location-btn").addEventListener("click", (e) => {
 let csvBTN = document.getElementById("open-file-btn");
 
 csvBTN.addEventListener("click", (e) => {
-    if(contractorvalue.length > 0 && jobvalue.length > 0 && datevalue.length > 0 && pricevalue.length > 0) {
-        window.electronAPI.openFile({
-            contractor: contractorvalue,
-            job: jobvalue,
-            date: datevalue,
-            // qualifications: qualificationsvalue,
-            // exclusions: exclusionsvalue,
-            price: pricevalue,
-        });
-        // document.getElementById("open-file-btn").classList.add("success");
-        document.getElementById("errors").innerText = ""
-    } else {
-        document.getElementById("errors").innerText = "! please enter a contractor, job name, and bid date to continue"
-    }
+    window.electronAPI.openFile();
 })
 
 window.electronAPI.saveLocationSuccess((success, location) => {
     if(success) {
         saveBTN.classList.add("success");
+        document.getElementById('save-success-marker').innerText = '✔️'
         saveLabel.innerHTML = `
             <span class="save-label-label">saving proposal to: </span><span class="save-label-location">${location}</span>
         `
+        save_ready = true;
+        checkStart();
     } else {
         // tell user the save location is invalid
     }
@@ -65,9 +58,12 @@ let csvLabel = document.getElementById("generation-success-label");
 window.electronAPI.csvLocationSuccess((success, location) => {
     if(success) {
         csvBTN.classList.add("success");
+        document.getElementById('csv-success-marker').innerText = '✔️'
         csvLabel.innerHTML = `
-            <span class="save-label-label">successfully saved proposal to: </span><span class="save-label-location">${location}</span>
+            <span class="save-label-label">using csv located at: </span><span class="save-label-location">${location}</span>
         `
+        csv_ready = true;
+        checkStart();
     } else {
         // tell user the save location is invalid
     }
@@ -148,6 +144,26 @@ let settingsBtn = document.getElementById("settings-btn").addEventListener('clic
             break
     }
 })
+
+let checkStart = () => {
+    if(save_ready && csv_ready) {
+        startBTN.classList.remove('btn-disabled');
+    }
+}
+
+startBTN.onclick = (e) => {
+    if(contractorvalue.length > 0 && jobvalue.length > 0 && datevalue.length > 0 && save_ready && csv_ready) {
+        window.electronAPI.start({
+            contractor: contractorvalue,
+            job: jobvalue,
+            date: datevalue,
+        });
+        // document.getElementById("open-file-btn").classList.add("success");
+        document.getElementById("errors").innerText = ""
+    } else {
+        // document.getElementById("errors").innerText = "! please enter a contractor, job name, and bid date to continue"
+    }
+}
 
 // to finish settings just send the settings object back to main and save it
 

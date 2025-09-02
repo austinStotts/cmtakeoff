@@ -1,8 +1,9 @@
 const { contextBridge, ipcRenderer, ipcMain } = require('electron')
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  openFile: (details) => ipcRenderer.send('open-file', details),
+  openFile: () => ipcRenderer.send('open-file'),
   saveLocation: () => ipcRenderer.send('save-location'),
+  start: (details) => ipcRenderer.send('start', details),
   getSettings: () => ipcRenderer.send('get-settings'),
   setSettings: (settings) => ipcRenderer.send('set-settings', settings),
   saveLocationSuccess: (callback) => { ipcRenderer.on('save-location-success', (event, success, location) => callback(success, location)) },

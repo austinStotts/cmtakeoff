@@ -19,7 +19,7 @@
       <span class="title">Custom Millwork <span class="title-2">Proposal Generator</span></span>
     </div>
     <div class="settings-button-wrapper">
-      <button id="settings-btn" class="settings-btn">⚙️</button>
+      <img id="settings-btn" class="settings-btn" src="../images/gear.png">
     </div>
     <div id="settings-view-wrapper" class="settings-view-wrapper"></div>
     <div id="main-view-wrapper" class="main-view-wrapper">
@@ -40,23 +40,29 @@
         <div class="default-exclusions-label-wrapper"><span class="default-exclusions-label">default exclusions?</span><input type="checkbox" class="input-default-exclusions"></div>
         <textarea name="exclusions" id="exclusions-input" class="exclusions-area" rows="5"></textarea>
       </div> -->
-      <div class="price-wrapper">
+      <!-- <div class="price-wrapper">
         <div class="label">2 Price</div>
         <span class="price-input-wrapper">$ <input type="text" placeholder="bid amount" id="price-input" class="price-input"></span>
-      </div>
+      </div> -->
       <div class="save-wrapper">
-        <div class="label">3 Select Proposal Save Location</div>
-        <button id="save-location-btn" class="save-button">select save location</button>
+        <div class="label">2 Select Proposal Save Location</div>
+        <div class="input-line-wrapper">
+          <div id="save-success-marker" class="input-success-marker"></div>
+          <button id="save-location-btn" class="save-button">select save location</button>
+        </div>
         <p class="location-label" id="save-location-label"></p>
       </div>
       <div class="file-wrapper">
-        <div class="label">4 Select CSV from Bluebeam</div>
-        <button id="open-file-btn" class="csv-button">select csv</button>
+        <div class="label">3 Select CSV from Bluebeam</div>
+        <div class="input-line-wrapper">
+          <div id="csv-success-marker" class="input-success-marker"></div>
+          <button id="open-file-btn" class="csv-button">select csv</button>
+        </div>
         <p class="location-label" id="generation-success-label"></p>
       </div>
-      <!-- <div class="next-wrapper">
-        <button class="next-btn disable" id="nextbtn1">next</button>
-      </div> -->
+      <div class="next-wrapper">
+        <button class="start-btn btn-disabled" id="start-btn">start</button>
+      </div>
       <div id="console"></div>
     </div>
 

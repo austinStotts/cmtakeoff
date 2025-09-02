@@ -5,7 +5,7 @@ html {
 .label {
     font-size: 18px;
     font-weight: bold;
-    display: inline-block;
+    display: block;
 }
 
 .title-wrapper {
@@ -103,10 +103,29 @@ html {
     text-decoration: underline;
 }
 
+.input-line-wrapper {
+    margin-top: 5px;
+    display: grid;
+    grid-template-columns: 25px auto;
+    grid-template-rows: 25px;
+}
+
+.input-success-marker {
+    border: 1px solid black;
+    display: inline-block;
+    width: 23px;
+    height: 23px;
+}
+
 .csv-button {
+    border: 1px solid black;
     width: 150px;
-    display: block;
-    margin: 2px 0px;
+    height: 100%;
+    display: inline-block;
+    margin-left: 5px;
+    padding-top: 0px;
+    padding-bottom: 0px;
+    background-color: rgb(221, 221, 221);
 }
 
 .csv-button:hover {
@@ -114,9 +133,14 @@ html {
 }
 
 .save-button {
+    border: 1px solid black;
     width: 150px;
-    display: block;
-    margin: 2px 0px;
+    height: 100%;
+    display: inline-block;
+    margin-left: 5px;
+    padding-top: 0px;
+    padding-bottom: 0px;
+    background-color: rgb(221, 221, 221);
 }
 
 .save-button:hover {
@@ -171,8 +195,21 @@ html {
     font-weight: bold;
 }
 
-.settings-input {
+.settings-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    width: 30px;
+    background-color: transparent;
+    text-shadow: 1px 1px black;
+    font-size: 26px;
+    border: none;
+    transition-duration: 0.3s;
+}
 
+.settings-btn:hover {
+    cursor: pointer;
+    transform: rotate(45deg);
 }
 
 .disabled-input {
@@ -183,3 +220,46 @@ html {
     opacity: 50%;
     text-decoration: line-through;
 }
+
+.start-btn {
+    width: 150px;
+    height: 30px;
+    background-color: rgb(221, 221, 221);
+    border: 1px solid black;
+}
+
+.start-btn:hover {
+    cursor: pointer;
+}
+
+.btn-disabled {
+    opacity: 50%;
+    position: relative;
+}
+
+.btn-disabled:after {
+    content: "select save location and csv to start";
+    position: absolute;
+    top: -30px;
+    right: 0;
+    left: 0;
+    display: none;
+    text-align: center;
+    background-color: #000;
+    color: #fff;
+    border-radius: 4px;
+    padding: 2px;
+}
+
+.btn-disabled:hover {
+    cursor: not-allowed;
+}
+
+.btn-disabled:hover:after {
+    display: block;
+}
+
+.btn-success {
+
+}
+
