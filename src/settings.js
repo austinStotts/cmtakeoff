@@ -51,9 +51,11 @@ let defaults = {
         "user": "guest"
     },
     "settings": {
+        "primary_column": "Subject",
+        "generate_details": false, // this is called 'use legacy details' on the client
         "auto_open_word": true,
+        "top_shop_tool_subject": "tops",
         "require_all_fields": true,
-        "remember_inputs": false
     }
 }
 

@@ -30,16 +30,23 @@ dateinput.addEventListener("change", (e) => { datevalue = e.target.value });
 // priceinput.addEventListener("change", (e) => { pricevalue = e.target.value });
 
 document.getElementById("save-location-btn").addEventListener("click", (e) => {
+    document.getElementById('save-loader').classList.remove('hide');
+    document.getElementById('save-loader').classList.add('loading');
+
     window.electronAPI.saveLocation();
 })
 
 let csvBTN = document.getElementById("open-file-btn");
 
 csvBTN.addEventListener("click", (e) => {
+    document.getElementById('csv-loader').classList.remove('hide');
+    document.getElementById('csv-loader').classList.add('loading');
     window.electronAPI.openFile();
 })
 
 window.electronAPI.saveLocationSuccess((success, location) => {
+    document.getElementById('save-loader').classList.add('hide');
+    document.getElementById('save-loader').classList.remove('loading');
     if(success) {
         saveBTN.classList.add("success");
         document.getElementById('save-success-marker').innerText = '✔️'
@@ -56,6 +63,8 @@ window.electronAPI.saveLocationSuccess((success, location) => {
 let csvLabel = document.getElementById("generation-success-label");
 
 window.electronAPI.csvLocationSuccess((success, location) => {
+    document.getElementById('csv-loader').classList.add('hide');
+    document.getElementById('csv-loader').classList.remove('loading');
     if(success) {
         csvBTN.classList.add("success");
         document.getElementById('csv-success-marker').innerText = '✔️'
@@ -66,6 +75,19 @@ window.electronAPI.csvLocationSuccess((success, location) => {
         checkStart();
     } else {
         // tell user the save location is invalid
+    }
+})
+
+let successWrapper = document.getElementById('success-wrapper');
+
+window.electronAPI.proposalSuccess((success) => {
+    if(success) {
+        successWrapper.hidden = false;
+        setTimeout(() => {
+            successWrapper.hidden = true;
+        }, 1500)
+    } else {
+
     }
 })
 
@@ -101,22 +123,32 @@ let settingsBtn = document.getElementById("settings-btn").addEventListener('clic
             currentView = 'settings';
             view.hidden = true;
             settingsView.innerHTML = `
-                <div class="settings-label">name:</div><input id="settings-name" class="settings-input" type="text" placeholder="John Smith" value="${currentSettings.info.user}">
-                <div class="settings-label disabled-label">auto open word:</div><input id="settings-open-word" class="settings-input disabled-input" type="checkbox" disabled ${currentSettings.settings.auto_open_word ? 'checked' : ''}>
+                <div class="settings-label main-name">name:<span class="tooltip-name">your name - used in the signature section of the proposal</span></div><input id="settings-name" class="settings-input" type="text" placeholder="John Smith" value="${currentSettings.info.user}">
+                <div class="settings-label main-primary-column">primary column:<span class="tooltip-primary-column">what column has your unique tool info? ex: 'base cabinets w/ sub tops'</span></div>
+                <select id="settings-primary-column" class="settings-input">
+                    <option value="Subject" ${currentSettings.settings.primary_column == "Subject" ? 'Selected' : ''}>Subject</option>
+                    <option value="Label" ${currentSettings.settings.primary_column == "Label" ? 'Selected' : ''}>Label</option>
+                </select>
+                <div class="settings-label main-generate-details">use legacy details:<span class="tooltip-generate-details">use the old style totals sheet?</span></div><input id="settings-generate-details" class="settings-input" type="checkbox" ${currentSettings.settings.generate_details ? 'checked' : ''}>
+                <div class="settings-label main-open-word">auto open word:<span class="tooltip-open-word">open proposals automatically in word after creation?</span></div><input id="settings-open-word" class="settings-input" type="checkbox" ${currentSettings.settings.auto_open_word ? 'checked' : ''}>
+                <div class="settings-label main-top-shop">topshop tool subject:<span class="tooltip-top-shop">what subject, label, or secondary column name is being used for top shop items?       ! use a comma to filter multiple subjects ex: Quartz tops, Solid Surface tops</span></div><input id="settings-top-shop-subject" class="settings-inputs" type="text" placeholder="countertops" value="${currentSettings.settings.top_shop_tool_subject}">
                 <div class="settings-label disabled-label">require all fields:</div><input id="settings-require-inputs" class="settings-inputs disabled-input" type="checkbox" disabled ${currentSettings.settings.require_all_fields ? 'checked' : ''}>
-                <div class="settings-label disabled-label">remember inputs:</div><input id="settings-remember-inputs" class="settings-inputs disabled-input" type="checkbox" disabled ${currentSettings.settings.remember_inputs ? 'checked' : ''}>
                 <button id="settings-save-btn" class="settings-save-btn">save</button>
             `
 
             let saveName = document.getElementById('settings-name');
+            let primaryColumn = document.getElementById('settings-primary-column');
+            let generateDetails = document.getElementById('settings-generate-details');
             let saveOpenWord = document.getElementById('settings-open-word');
+            let saveTopShopToolSubject = document.getElementById('settings-top-shop-subject');
             let saveRequireInputs = document.getElementById('settings-require-inputs');
-            let saveRememberInputs = document.getElementById('settings-remember-inputs');
 
             saveName.addEventListener('change', (e) => { currentSettings.info.user = e.target.value });
+            primaryColumn.addEventListener('change', (e) => { currentSettings.settings.primary_column = e.target.selectedIndex == 1? "Label" : "Subject" });
+            generateDetails.addEventListener('change', (e) => { console.log(e); currentSettings.settings.generate_details = e.target.checked });
             saveOpenWord.addEventListener('change', (e) => { console.log(e); currentSettings.settings.auto_open_word = e.target.checked });
+            saveTopShopToolSubject.addEventListener('change', (e) => { currentSettings.settings.top_shop_tool_subject = e.target.value });
             saveRequireInputs.addEventListener('change', (e) => { currentSettings.settings.require_all_inputs = e.target.checked });
-            saveRememberInputs.addEventListener('change', (e) => { currentSettings.settings.remember_inputs = e.target.checked });
 
             let saveSettingsBTN = document.getElementById('settings-save-btn');
             saveSettingsBTN.addEventListener('click', (e) => {

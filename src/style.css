@@ -31,6 +31,13 @@ html {
     margin: 5px 0px;
     height: 20px;
     width: 200px;
+    border: 1px solid black;
+    border-radius: 0px;
+}
+
+.input:focus {
+    outline: none;
+    border: 1px solid rgb(255, 185, 94);
 }
 
 .job-wrapper {
@@ -106,13 +113,14 @@ html {
 .input-line-wrapper {
     margin-top: 5px;
     display: grid;
-    grid-template-columns: 25px auto;
+    grid-template-columns: 25px 175px auto;
     grid-template-rows: 25px;
 }
 
 .input-success-marker {
     border: 1px solid black;
     display: inline-block;
+    position: relative;
     width: 23px;
     height: 23px;
 }
@@ -151,7 +159,7 @@ html {
     position: absolute;
     bottom: 6px;
     right: 10px;
-    font-size: 10px;
+    font-size: 14px;
     font-family: 'Courier New', Courier, monospace;
     color: green;
 }
@@ -240,15 +248,15 @@ html {
 .btn-disabled:after {
     content: "select save location and csv to start";
     position: absolute;
-    top: -30px;
+    top: 35px;
     right: 0;
     left: 0;
     display: none;
     text-align: center;
     background-color: #000;
     color: #fff;
-    border-radius: 4px;
-    padding: 2px;
+    border-radius: 0px;
+    padding: 6px;
 }
 
 .btn-disabled:hover {
@@ -263,3 +271,196 @@ html {
 
 }
 
+.hide {
+    opacity: 0%;
+    transition-duration: 0.5s;
+}
+
+
+
+
+.unhide {
+    opacity: 100% !important;
+}
+
+
+
+.success-wrapper {
+    font-size: 36px;
+    position: absolute;
+    transition-duration: 0.5s;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    z-index: 2;
+}
+
+.next-wrapper {
+    margin-top: 30px;
+}
+
+
+
+/* HTML: <div class="loader"></div> */
+.loader {
+    display: inline-block;
+    margin-top: 8px;
+    height: 20px;
+    width: 30px;
+    aspect-ratio: 4;
+    background: radial-gradient(circle closest-side,#000 90%,#0000) 0/calc(100%/3) 100% space;
+    clip-path: inset(0 100% 0 0);
+    animation: l1 1s steps(4) infinite;
+}
+@keyframes l1 {to{clip-path: inset(0 -34% 0 0)}}
+
+
+.hide {
+    opacity: 0%;
+}
+
+.loading:after {
+    content: "loading...";
+    position: absolute;
+    top: 35px;
+    right: 0;
+    left: 0;
+    display: none;
+    text-align: center;
+    background-color: #000;
+    color: #fff;
+    border-radius: 0px;
+    padding: 6px;
+}
+
+.loading:hover {
+    display: block;
+    cursor: wait;
+}
+/* clean up a few more things and ship it */
+
+
+
+
+
+
+
+
+
+
+
+
+
+.tooltip-generate-details {
+    visibility: hidden;
+    width: 150px;
+    background-color: black;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+}
+
+.main-generate-details:hover .tooltip-generate-details {
+    visibility: visible;
+}
+
+.main-generate-details:hover {
+    text-decoration: underline;
+    cursor: help;
+}
+
+
+.tooltip-primary-column {
+    visibility: hidden;
+    width: 150px;
+    background-color: black;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+}
+
+.main-primary-column:hover .tooltip-primary-column {
+    visibility: visible;
+}
+
+.main-primary-column:hover {
+    text-decoration: underline;
+    cursor: help;
+}
+
+
+.tooltip-name {
+    visibility: hidden;
+    width: 150px;
+    background-color: black;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+}
+
+.main-name:hover .tooltip-name {
+    visibility: visible;
+}
+
+.main-name:hover {
+    text-decoration: underline;
+    cursor: help;
+}
+
+
+
+
+.tooltip-open-word {
+    visibility: hidden;
+    width: 150px;
+    background-color: black;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+}
+
+.main-open-word:hover .tooltip-open-word {
+    visibility: visible;
+}
+
+.main-open-word:hover {
+    text-decoration: underline;
+    cursor: help;
+}
+
+
+
+
+.tooltip-top-shop {
+    visibility: hidden;
+    width: 150px;
+    background-color: black;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+}
+
+.main-top-shop:hover .tooltip-top-shop {
+    visibility: visible;
+}
+
+.main-top-shop:hover {
+    text-decoration: underline;
+    cursor: help;
+}

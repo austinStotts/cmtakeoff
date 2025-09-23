@@ -3,6 +3,8 @@
         "user": "guest"
     },
     "settings": {
+        "primary_column": "Subject",
+        "totals_extra_details": false,
         "auto_open_word": true,
         "require_all_fields": true,
         "remember_inputs": false

@@ -8,8 +8,41 @@ let devMode = false;
 if(process.env.TERM_PROGRAM == 'vscode') {
   devMode = true;
 }
+// app.disableHardwareAcceleration(); 
 let mainWindow;
 // var settings;
+
+
+
+
+
+
+
+
+
+
+
+
+// TO DO!
+// 1 use the label/subject to change the output from the proposal/totals
+// - tops should be sqft on the totals and lf on the proposal but other items with depth that are not tops should stay sqft on both
+// 2 add an aditional output section on the totals or a whole new file for item by room
+// - item by room shows each item followed by a list of each room it appears and the measurement in that room
+
+// Base Cabinets (Plam)
+// ~ 101 Men's Restroom 9 LF
+// ~ 102 Women's Restroom 9 LF
+
+
+
+
+
+
+
+
+
+let state = "root";
+
 
 const createWindow = () => {
   mainWindow = new BrowserWindow({
@@ -22,7 +55,8 @@ const createWindow = () => {
     }
   })
   mainWindow.loadFile('src/index.html');
-  mainWindow.menuBarVisible = false;
+  !devMode ? mainWindow.menuBarVisible = false : mainWindow.menuBarVisible = true;
+  
 }
 
 let saveLocation = "";
@@ -30,41 +64,47 @@ let csvLocation = "";
 
 let handleStart = (event, details) => {
   let callback = (success) => {
-    console.log('good job!');
+    // console.log('good job!');
+    mainWindow.webContents.send('proposal-success', true);
   };
   csvMethods.calculateProposal(csvLocation, details, saveLocation, settings, handleError, callback);
 }
 
 let openFile = (event) => {
-  console.log("opening file")
-  dialog.showOpenDialog({properties: ['openFile']})
-  .then(result =>  {
+  console.log("opening file");
+  let filePath = dialog.showOpenDialog({
+    title: 'Select CSV you created in blubeam',
+    buttonLabel: 'Open',
+    filters: [{ name: "CSV", extensions: ['csv'] }],
+    properties: ['openFile']
+  }).then(result =>  {
     console.log(result.canceled);
     csvLocation = result.filePaths[0];
     mainWindow.webContents.send('csv-location-success', true, csvLocation);
   }).catch(err => {
     console.log(err);
+    mainWindow.webContents.send('csv-location-success', false, csvLocation);
   })
 }
 
 let handleSaveLocation = (event) => {
   dialog.showSaveDialog({
-    title: 'Select the File Path to save',
+    title: 'Select location to save proposal',
     defaultPath: devMode ? "C:\\Users\\astotts\\Desktop\\CSV TESTING\\proposal.docx" : "P:\\Plans Download\\proposal.docx",
     buttonLabel: 'Save',
-    filters: [{name: "DOCX", extensions: ['docx']}],
+    filters: [{ name: "DOCX", extensions: ['docx'] }],
     properties: []
   }).then(file => {
     console.log(file.canceled);
     if (!file.canceled) {
-      console.log('got the file!')
+      console.log('got the file!');
       console.log(file.filePath.toString());
       saveLocation = file.filePath.toString();
       mainWindow.webContents.send('save-location-success', true, saveLocation);
     }
   }).catch(err => {
-      console.log(err);
-      mainWindow.webContents.send('save-location-success', false);
+    console.log(err);
+    mainWindow.webContents.send('save-location-success', false);
   });
 }
 
@@ -110,7 +150,6 @@ let saveSettings = (data) => {
 }
 
 Settings.loadSettings(saveSettings);
-
 
 
 

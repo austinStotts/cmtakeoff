@@ -5,8 +5,8 @@ const { parse } = require("csv-parse");
 const open = require('open');
 const docx = require("docx");
 
-let generateDoc = true;
-let generateTotals = true;
+let generateDoc = true; // true
+let generateTotals = true; // true
 let isSuccess = true;
 
 let devMode = false;
@@ -14,38 +14,6 @@ if(process.env.TERM_PROGRAM == 'vscode') {
   devMode = true;
 }
 
-
-let randomsort = (a, b) => 0.5 - Math.random();
-
-//                   array       string
-let checkPages = (currentPages, page) => { // old
-  let hasPage = false;
-  for(let i = 0; i < currentPages.length; i++) {
-    if(currentPages[i] == page) { hasPage = true }
-  }
-  return hasPage;
-}
-
-function printValues(obj) { // old
-    for (var key in obj) {
-        if (typeof obj[key] === "object") {
-            printValues(obj[key]);   
-        } else {
-            console.log(obj[key]);    
-        }
-    }
-}
-
-let formatMeasurement = (row) => { // old
-  if(row['Depth'] > 0.01) {
-    return { measurement: Number(row['Measurement']) * (row['Depth Unit'] == 'in' ? Number(row['Depth']) / 12 : Number(row['Depth'])), unit: 'sqft' };
-  } else {
-    return { measurement: Number(row['Measurement']), unit: row['Measurement Unit'] };
-  }
-}
-
-// get the proposal generator to use the new job object
-// change the front end to have clearer instructions
 
 // [
 //   'Space',            'Measurement',
@@ -66,6 +34,14 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
   console.log("file: ", file);
   console.log("details: ", details);
   console.log("saveLocation: ", saveLocation);
+  let stats;
+  fs.stat(file, (error, data) => {
+    if(error) {
+      console.log(error);
+    } else {
+      stats = data;
+    }
+  })
   if (file != null) {
     fs.createReadStream(file)
       .pipe(parse({ delimiter: ",", from_line: 1 }))
@@ -79,61 +55,22 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
         let columns = rows.shift();
         columns[0] = columns[0].slice(1);
         console.log(columns);
-        let toolKey = 'Subject';
+        let toolKey = settings.settings.primary_column || "Subject";
+        let searchKey = toolKey == "Subject" ? "Label" : "Subject";
         let totals = { groups: {} };
         let job = { groups: {} };
-        // let scope = {};
-        // let totals = {};
-        // let groups = new Map;
-        // This loop organizes the raw csv data into rooms and items
-        // it is mandatory for the csv columns to be in the correct order
-        // scope - measurement - label - subject - special comments
         for (let i = 0; i < rows.length; i++) {
           let row = {};
           for(let j = 0; j < columns.length; j++) {
             row[columns[j]] = rows[i][j];
           }
-          // if a material is given add that to the item key
-          // scope
-          // console.log([Number(row['Measurement']), row['Measurement Unit']]);
-          // if(scope[row['Space']]) { // room exists
-          //   if(scope[row['Space']]['items'][`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`]) { // room and item exist
-          //     // console.log(scope[row['Space']]['items'][`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement);
-          //     scope[row['Space']]['items'][`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement = scope[row['Space']]['items'][`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement + Number(row['Measurement']);
-          //     if(row['Page Label'] && !checkPages(scope[row['Space']]['pages'], row['Page Label'])) { scope[row['Space']]['pages'].push(row['Page Label']) }
-          //   } else { // room exists but item does not exist
-          //     scope[row['Space']]['items'][`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`] = { measurement: Number(row['Measurement']), unit: row['Measurement Unit'] };
-          //     if(row['Page Label'] && !checkPages(scope[row['Space']]['pages'], row['Page Label'])) { scope[row['Space']]['pages'].push(row['Page Label']) }
-          //   }
-          // } else { // room does not exist
-          //   scope[row['Space']] = {items: {}, pages: []};
-          //   scope[row['Space']]['items'][`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`] = { measurement: Number(row['Measurement']), unit: row['Measurement Unit'] };
-          //   if(row['Page Label'] && !checkPages(scope[row['Space']]['pages'], row['Page Label'])) { scope[row['Space']]['pages'].push(row['Page Label']) }
-          // }
 
-          if(!row['Group']) { row['Group'] = 'Base Bid' }
+          if(!row['Group']) { row['Group'] = 'Base Bid' } // a blank group will be changed to 'Base Bid'
 
-          // if(job.groups[row['Price Grouping']]) { // does the Price Grouping already exist?
-          //   job.groups[row['Price Grouping']].scope.pages.push(row['Page Label']);
-          //   job.groups[row['Price Grouping']].scope.items.push({
-          //     name: row[toolKey],
-          //     measurement: Number(row['Measurement']),
-          //     unit: row['Measurement Unit'],
-          //     material: row['Material Type'],
-          //     depth: row['Depth'] || null,
-          //     groupName: row['Price Grouping'],
-          //     spaceName: row['Space'],
-          //     excluded: false
-          //   })
-          // } else {
-          //   job.groups[row['Price Grouping']] = {
-          //     name: row['Price Grouping'], 
-          //     scope: {
-          //       rooms: {}
-          //     }
-          //   }
-          // }
-
+          // Job
+          // loops through each row of the csv and organizes into job > groups > rooms > items
+          // be careful changing refs to the job object because many things rely on it
+          // pass by ref vs pass by val
           if(job.groups[row['Group']]) {
             if(job.groups[row['Group']].rooms[row['Space']]) {
               if(job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`]) { // old item
@@ -142,6 +79,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                 job.groups[row['Group']].rooms[row['Space']].pages.push(row['Page Label']);
                 job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`] = {
                   name: row[toolKey],
+                  search: row[searchKey],
                   measurement: Number(row['Measurement']),
                   unit: row['Measurement Unit'],
                   material: row['Material'] || '*',
@@ -156,6 +94,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
               job.groups[row['Group']].rooms[row['Space']].pages.push(row['Page Label']);
               job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`] = {
                 name: row[toolKey],
+                search: row[searchKey],
                 measurement: Number(row['Measurement']),
                 unit: row['Measurement Unit'],
                 material: row['Material'] || '*',
@@ -171,6 +110,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
             job.groups[row['Group']].rooms[row['Space']].pages.push(row['Page Label']);
             job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`] = {
               name: row[toolKey],
+              search: row[searchKey],
               measurement: Number(row['Measurement']),
               unit: row['Measurement Unit'],
               material: row['Material'] || '*',
@@ -180,186 +120,67 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
               excluded: false
             }
           }
-
-
-          // need to go back and add spaces
-          // skipped past them the first time
-          // job > groups > spaces > items
-          // the totals can just ignore the space
-
-
-          
-
-          // console.log(totals);
-          
-
-          
-          // console.log(JSON.stringify(job))
-
-          // printValues(job)
-          // totals
-
-
-          // if(totals[`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`]) {
-          //   if(row['Price Grouping']) {
-          //     if(row['Price Grouping'] == totals[`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].group) {
-          //       totals[`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement = totals[`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement + (formatMeasurement(row).measurement * n);
-          //     } else {
-
-          //     }
-          //   } else {
-          //     totals[`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement = totals[`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`].measurement + (formatMeasurement(row).measurement * n);
-          //   }
-          // } else {
-          //   totals[`${row[toolKey]}${row['Material Type'] ? ` (${row['Material Type']})` : ""}`] = { measurement: formatMeasurement(row).measurement * n, unit: formatMeasurement(row).unit, group: row['Price Grouping'] };
-          // }
-          // groups.set(row['Price Grouping']);
-
-          // okay so this needs to be reworked again
-          // using the key is not enough
-          // the group should not change the item but the material should
-          // so maybe it doesn't need to be totally reworked
-          //
-          // 
-
-          // new job object shape
-          // check group first to sort
-          // give the job object to the totals and use the already group object
-          // let job = {
-          //   groups: {
-          //     "Base Bid": {
-          //         rooms: {
-          //           "breakroom": {
-          //             items: [
-          //               {
-          //                 name: 'base cabinet',
-          //                 measurement: 8,
-          //                 unit: 'lf',
-          //                 excluded: false,
-          //                 groupName: 'Base Bid',
-          //                 depth: null,
-          //               },
-          //               {
-          //                 name: 'base cabinet',
-          //                 measurement: 8,
-          //                 unit: 'lf',
-          //                 excluded: false,
-          //                 groupName: 'Base Bid',
-          //                 depth: null,
-          //               },
-          //               {
-          //                 name: 'base cabinet',
-          //                 measurement: 8,
-          //                 unit: 'lf',
-          //                 excluded: false,
-          //                 groupName: 'Base Bid',
-          //                 depth: null,
-          //               },
-          //               {
-          //                 name: 'base cabinet',
-          //                 measurement: 8,
-          //                 unit: 'lf',
-          //                 excluded: false,
-          //                 groupName: 'Base Bid',
-          //                 depth: null,
-          //               },
-          //             ],
-          //             pages: [A101],
-          //           },
-          //         },
-                
-          //     }
-          //   }
-          // }
-
-
         }
 
-          Object.keys(job.groups).forEach(group => {
-            // each group
-            if(!totals.groups[group]) {
-              totals.groups[group] = { items: {} }
+
+        // TOTALS
+        // uses the job object to make a totals object
+        // when saving refs to the job a deepcopy is used (JSON.parse(JSON.stringify(x)))
+        // this lets the document maker make changes in place to the job object without changing the totals
+        Object.keys(job.groups).forEach(group => {
+          if(!totals.groups[group]) {
+            totals.groups[group] = { items: {} }
+          }
+
+          Object.keys(job.groups[group].rooms).forEach(room => {
+            let roomarray = room.split(" ");
+            let n = 1;
+            if (roomarray[0].toLowerCase().includes("x)")) {
+              n = roomarray[0].slice(1, roomarray[0].length - 2);
+            } else if (roomarray[0].toLowerCase().includes("(x")) {
+              n = roomarray[0].slice(2, roomarray[0].length - 1);
+            } else if (roomarray[roomarray.length - 1].toLowerCase().includes("x)")) {
+              n = roomarray[roomarray.length - 1].slice(1, roomarray[roomarray.length - 1].length - 2);
+            } else if (roomarray[roomarray.length - 1].toLowerCase().includes("(x")) {
+              n = roomarray[roomarray.length - 1].slice(2, roomarray[roomarray.length - 1].length - 1);
+            } else {
+              // none
             }
 
-            Object.keys(job.groups[group].rooms).forEach(room => {
-              // each room
-              let roomarray = room.split(" ");
-              let n = 1;
-              if (roomarray[0].toLowerCase().includes("x)")) {
-                n = roomarray[0].slice(1, roomarray[0].length - 2);
-              } else if (roomarray[0].toLowerCase().includes("(x")) {
-                n = roomarray[0].slice(2, roomarray[0].length - 1);
-              } else if (roomarray[roomarray.length - 1].toLowerCase().includes("x)")) {
-                n = roomarray[roomarray.length - 1].slice(1, roomarray[roomarray.length - 1].length - 2);
-              } else if (roomarray[roomarray.length - 1].toLowerCase().includes("(x")) {
-                n = roomarray[roomarray.length - 1].slice(2, roomarray[roomarray.length - 1].length - 1);
-              } else {
-                // none
-              }
-              Object.keys(job.groups[group].rooms[room].items).forEach(item => {
-                // each item
-                // console.log(job.groups[group].rooms[room].items[item].depth)
-                if(totals.groups[group].items[item]) { // old item
-                  // console.log("MATCH!");
-                  if(job.groups[group].rooms[room].items[item].depth) {
-                    totals.groups[group].items[item].measurement += (job.groups[group].rooms[room].items[item].measurement * (job.groups[group].rooms[room].items[item].depth / 12)) * n;
-                  } else {
-                    totals.groups[group].items[item].measurement += job.groups[group].rooms[room].items[item].measurement * n;
-                  }
-                } else { // new item
-                  if(job.groups[group].rooms[room].items[item].depth) { // depth should be in inches
-                    totals.groups[group].items[item] = { measurement: (job.groups[group].rooms[room].items[item].measurement * (job.groups[group].rooms[room].items[item].depth / 12)) * n, unit: 'sqft' }
-                  } else {
-                    totals.groups[group].items[item] = { measurement: job.groups[group].rooms[room].items[item].measurement * n, unit: job.groups[group].rooms[room].items[item].unit }
-                  }
+            Object.keys(job.groups[group].rooms[room].items).forEach(item => {
+              if(totals.groups[group].items[item]) { // old item
+                if(job.groups[group].rooms[room].items[item].depth) {
+                  totals.groups[group].items[item].measurement += (job.groups[group].rooms[room].items[item].measurement * (job.groups[group].rooms[room].items[item].depth / 12)) * n;
+                  totals.groups[group].items[item].details.push([job.groups[group].rooms[room].items[item].spaceName, (job.groups[group].rooms[room].items[item].measurement * (job.groups[group].rooms[room].items[item].depth / 12)) * n, 'sqft', JSON.parse(JSON.stringify(job.groups[group].rooms[room].items[item])), job.groups[group].rooms[room].pages]);
+                } else {
+                  totals.groups[group].items[item].measurement += job.groups[group].rooms[room].items[item].measurement * n;
+                  totals.groups[group].items[item].details.push([job.groups[group].rooms[room].items[item].spaceName, job.groups[group].rooms[room].items[item].measurement * n, job.groups[group].rooms[room].items[item].unit, JSON.parse(JSON.stringify(job.groups[group].rooms[room].items[item])), job.groups[group].rooms[room].pages]);
                 }
-              })
-            }) 
+              } else { // new item
+                if(job.groups[group].rooms[room].items[item].depth) { // depth should be in inches
+                  totals.groups[group].items[item] = { measurement: (job.groups[group].rooms[room].items[item].measurement * (job.groups[group].rooms[room].items[item].depth / 12)) * n, unit: 'sqft', details: [[job.groups[group].rooms[room].items[item].spaceName, (job.groups[group].rooms[room].items[item].measurement * (job.groups[group].rooms[room].items[item].depth / 12)) * n, 'sqft', JSON.parse(JSON.stringify(job.groups[group].rooms[room].items[item])), job.groups[group].rooms[room].pages]] }
+                } else {
+                  totals.groups[group].items[item] = { measurement: job.groups[group].rooms[room].items[item].measurement * n, unit: job.groups[group].rooms[room].items[item].unit, details: [[job.groups[group].rooms[room].items[item].spaceName, job.groups[group].rooms[room].items[item].measurement * n, job.groups[group].rooms[room].items[item].unit, JSON.parse(JSON.stringify(job.groups[group].rooms[room].items[item])), job.groups[group].rooms[room].pages]] }
+                }
+              }
+            })
+          }) 
+        })
 
-          })
 
-          // console.log(totals);
-
-          // Object.keys(totals.groups).forEach(key => {
-          //   console.log('\n*** *** *** *** *** *** *** ***', key);
-          //   Object.keys(totals.groups[key].items).forEach(item => {
-          //     console.log(item, ':', totals.groups[key].items[item].measurement)
-          //   })
-          // })
-
-          // Object.keys(job.groups).forEach(key => {
-          //   console.log('\n*** *** *** *** *** *** *** ***', key);
-          //   Object.keys(job.groups[key]).forEach(item => {
-          //     console.log(item, ':', job.groups[key][item])
-          //   })
-          // })
-
-        // before the scope is used in the document all numbers are rounded up
-        // roundall(scope);
-        // console.log(scope);
-        // let rooms = Object.keys(scope);
         
-        // rooms.forEach(room => {
-        //   let items = Object.keys(scope[room].items);
-        //   items.forEach(item => {
-        //     console.log(item, scope[room].items[item]);
-        //   })
-        // })
-        // console.log(scope);
-        // console.log(totals);
-        // console.log(groups)
-
-        // Object.keys(job.groups).forEach(key => {
-        //   console.log('\n\n');
-        //   console.log(key);
-        //   console.log(job.groups[key].scope.items);
-        // })
-
+        // Word DOCX
+        // uses the job object to generate text for the proposal
+        // lines needed in the proposal are pushing into the scopelist array
+        // each index in the scopelist array is a new line on the proposal
         let awiimg = '';
+        let iconimg = '';
         if(devMode) {
           awiimg = "./images/AWICQW.png";
+          iconimg = "./images/icon.jpg";
         } else {
           awiimg = process.resourcesPath + '/images/AWICQW.png'
+          iconimg = process.resourcesPath + '/images/icon.jpg'
         }
 
         let scopelist = [];
@@ -384,14 +205,12 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
             ]
           }))
           let rooms = Object.keys(job.groups[group].rooms);
-          for(let room = 0; room < rooms.length; room++) {
+          for(let room = 0; room < rooms.length; room++) { // rooms
             let items = Object.keys(job.groups[group].rooms[rooms[room]].items);
-            // console.log(items)
-
             scopelist.push(new docx.Paragraph({
               children: [
                 new docx.TextRun({
-                  text: `${rooms[room]} ${job.groups[group].rooms[rooms[room]].pages.length > 0 ? 'as seen on (' + job.groups[group].rooms[rooms[room]].pages.join(", ") + ')' : ''}`,
+                  text: `${rooms[room]} ${job.groups[group].rooms[rooms[room]].pages.length > 0 ? 'as seen on (' + [...new Set(job.groups[group].rooms[rooms[room]].pages)].join(", ") + ')' : ''}`,
                   bold: true,
                   size: 24,
                 })
@@ -402,7 +221,25 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
               }
             }));
 
-            for(let item = 0; item < items.length; item++) {
+            // tops should read as LF on the proposal while all other items with depth should be sqft
+            for(let item = 0; item < items.length; item++) { // items
+              let thing = job.groups[group].rooms[rooms[room]].items[items[item]]
+              if(thing.depth > 0) { // this double if statement is for the special tops case
+                let topshopSubjects = settings.settings.top_shop_tool_subject.split(",");
+                topshopSubjects.push("tops", "countertops");
+                let match = false;
+                topshopSubjects.forEach(subject => {
+                  subject = subject.trim();
+                  console.log(subject);
+                  if (thing.search == subject) match = true;
+                })
+                if(match) {} // keep as lf
+                else { // changes all non top items to sqft !WARNING !THIS CHANGES THE JOB OBJECT AND ALL REFS TO THE JOB OBJECT!
+                  job.groups[group].rooms[rooms[room]].items[items[item]].measurement = (job.groups[group].rooms[rooms[room]].items[items[item]].measurement * (job.groups[group].rooms[rooms[room]].items[items[item]].depth / 12));
+                  job.groups[group].rooms[rooms[room]].items[items[item]].unit = 'sqft'
+                  console.log(job.groups[group].rooms[rooms[room]].items[items[item]])
+                }
+              }
               if(job.groups[group].rooms[rooms[room]].items[items[item]].unit == 'Count') {
                 scopelist.push(new docx.Paragraph({
                   children: [
@@ -416,7 +253,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                     level: 0,
                   }
                 }));
-              } else if (job.groups[group].rooms[rooms[room]].items[items[item]].unit == 'sqft') {
+              } else if (job.groups[group].rooms[rooms[room]].items[items[item]].unit == 'sqft' || job.groups[group].rooms[rooms[room]].items[items[item]].unit == 'sf') {
                 scopelist.push(new docx.Paragraph({
                   children: [
                     new docx.TextRun({
@@ -456,7 +293,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
           scopelist.push(new docx.Paragraph({
               children: [
                 new docx.TextRun({
-                  text: `Price to Furnish and Install ${group} From Above:......$`,
+                  text: `Price to Furnish and Install ${group} from Above:......$`,
                   bold: true,
                   size: 24,
                 })
@@ -465,9 +302,8 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
           )
         })
 
-
-
-
+        // it is easier to have these large blocks of text broken out and formatted into arrays
+        // each index of the array will be its own paragraph
 
         let notelist = []
         let noteText1 = [
@@ -625,9 +461,18 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
 
 
 
+        // Main Proposal
+        // the body of the proposal
+        // all the paragraphs are needed to format the document correctly
+        // paragraphs in word are the main way to get a true 'new line'
+        // text and textruns with new lines in them are not the same as a real paragraph break
+        // the arrays of text prepared above are added in place
 
+        // this bit is using the 'docx' package
+        // all text sizes are 2x the size you would pick in word
+        // size 24 => 12pt font
 
-
+        // I used extra spaces to approximate an equal distant look but it isnt perfect
         const doc = new docx.Document({
           numbering: {
             config: [
@@ -760,7 +605,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                 new docx.Paragraph({
                   children: [
                     new docx.TextRun({
-                      text: `TO:		        ${details.contractor}`,
+                      text: `TO:		        ${details.contractor}`, // here
                       size: 24,
                       bold: true,
                     })
@@ -769,7 +614,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                 new docx.Paragraph({
                   children: [
                     new docx.TextRun({
-                      text: `PROJECT:  	        ${details.job}`,
+                      text: `PROJECT:  	        ${details.job}`, // here
                       size: 24,
                       bold: true,
                     })
@@ -778,7 +623,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                 new docx.Paragraph({
                   children: [
                     new docx.TextRun({
-                      text: `ATTENTION:       Estimating`,
+                      text: `ATTENTION:       Estimating`, // here
                       size: 24,
                       bold: true,
                     })
@@ -971,9 +816,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                     })
                   ],
                 }),
-                // HERE
-                // MAKE n GROUPS AND LIST EACH WITH ITS OWN PRICE
-                ...scopelist,
+                ...scopelist, // groups from above are added in using the spread operator 
                 new docx.Paragraph({
                   children: [
                     new docx.TextRun({
@@ -982,7 +825,8 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                     })
                   ],
                 }),
-
+                // Removed because of the new group pricing stuff
+                // but the regex is cool so I won't delete it
 
                 // new docx.Paragraph({
                 //   children: [
@@ -1071,7 +915,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                 new docx.Paragraph({
                   children: [
                     new docx.TextRun({
-                      text: "CUSTOM MILLWORK                                          Accepted:                      ",
+                      text: "CUSTOM MILLWORK                                          Accepted:                      ", // here
                       size: 24,
                     })
                   ],
@@ -1106,7 +950,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                 new docx.Paragraph({
                   children: [
                     new docx.TextRun({
-                      text: "By:                                                                            By:                      ",
+                      text: "By:                                                                            By:                      ", // here
                       size: 24,
                     })
                   ],
@@ -1125,7 +969,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                 new docx.Paragraph({
                   children: [
                     new docx.TextRun({
-                      text: `                                              ${settings.info.user ? settings.info.user == 'guest' ? 'cm estimator' : settings.info.user : 'cm estimator'}`,
+                      text: `                                              ${settings.info.user ? settings.info.user == 'guest' ? 'cm estimator' : settings.info.user : 'cm estimator'}`, // here
                       size: 18,
                     })
                   ],
@@ -1141,7 +985,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                 new docx.Paragraph({
                   children: [
                     new docx.TextRun({
-                      text: "TITLE:            Project Estimator                              TITLE:",
+                      text: "TITLE:            Project Estimator                              TITLE:", // here
                       size: 24,
                     })
                   ],
@@ -1223,10 +1067,9 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
           ],
         })
 
-        // doc.sections.push({properties: {}, children: [ new docx.Paragraph({ text: "test" }) ]})
 
 
-        if(generateDoc) {
+        if(generateDoc) { // toggle off the word generation
           docx.Packer.toBuffer(doc).then((buffer) => {
             try {
               fs.writeFileSync(saveLocation, buffer);
@@ -1240,31 +1083,197 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
         }
 
 
+        // PDFs
+        // uses the 'pdfkit' package
+        // can just call methods on the document class to add text
+        // don't have to have the whole thing defined in a giant constructor
 
         // save a second document of the same name + '-totals'
         // show totals for each item in the job
         if(isSuccess && generateTotals) {
           let saveLocation2 = saveLocation.split('.docx')[0] + "-totals.pdf";
+          let saveLocation3 = saveLocation.split('.docx')[0] + "-details.pdf";
+
           const doc2 = new PDFDocument({ size: "LETTER", margins: { top: 25, bottom: 25, left: 50, right: 50 } });
-          doc2.pipe(fs.createWriteStream(saveLocation2));
-          doc2.fontSize(10);
-          doc2.font("Courier-Bold");
+          const doc3 = new PDFDocument({ size: "LETTER", margins: { top: 25, bottom: 25, left: 50, right: 50 } });
+
           let date = new Date();
-          let dateStr = ` ${date.getMonth()+1} / ${date.getDate()} / ${date.getFullYear()}`;
-          doc2.text(details.job + dateStr);
-          doc2.text(saveLocation2);
-          Object.keys(totals.groups).forEach((group) => {
-            doc2.text(" ");
+          let dateStr = ` ${date.getMonth()+1}/${date.getDate()}/${date.getFullYear()} - ${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`;
+          let groupStr = `number of price groups: [${Object.keys(job.groups).length}]`
+
+          if(!settings.settings.generate_details) {
+            doc3.pipe(fs.createWriteStream(saveLocation3));
+            doc3.image(iconimg, 480, 20, { width: 60 });
+            doc3.fontSize(10);
+            doc3.font("Courier-Bold");
+            doc3.text(`Job: ${details.job} | Created: ${dateStr}`, { width: 425 });
+            doc3.text(`Bid Date: ${details.date}`, { width: 425 });
+            doc3.text(groupStr, { width: 425 });
+            doc3.text(saveLocation3, { width: 425 });
+            doc3.text(" ");
+            doc3.text(" ");
+          } else {
+            doc2.pipe(fs.createWriteStream(saveLocation2));
+            doc2.fontSize(10);
             doc2.font("Courier-Bold");
-            doc2.text(`${group}`);
+            doc2.text(details.job + dateStr);
+            doc2.text(saveLocation2);
+          }
+          Object.keys(totals.groups).forEach((group) => {
+            if(!settings.settings.generate_details) {
+              doc3.text(" ");
+              doc3.font("Courier-Bold");
+              doc3.fontSize(10);
+              doc3.text(`${group}`, { underline: true, textIndent: 12 });
+              doc3.font("Courier");
+            } else {
+              doc2.text(" ");
+              doc2.font("Courier-Bold");
+              doc2.text(`${group}`);
+            }
             let data = [];
-            Object.keys(totals.groups[group].items).forEach((name) => {
+            Object.keys(totals.groups[group].items).sort().forEach((name, j) => {
               let value = totals.groups[group].items[name];
-              // console.log(value)
-              
               let row = [name, value.unit == `ft' in"` ? "LF" : value.unit == `ft` ? "LF" : value.unit, Math.ceil(value.measurement)];
-              // console.log(row)
-              data.push(row);
+              
+
+              if(!settings.settings.generate_details) {
+                let PrimaryRows = [];
+                let detailsList = [];
+                detailsList.push([
+                  { 
+                    font: { 
+                      src: "./saves/Courier-Bold.afm", 
+                      family: "Courier-Bold", 
+                      size: 8 
+                    }, 
+                    backgroundColor: "#000",
+                    textColor: "#fff",
+                    padding: ['0.5em', '0.25em', '0.25em', '0.25em'],
+                    colSpan: 1,
+                    text: `${j+1}.`
+                  }, 
+                  { 
+                    font: { 
+                      src: "./saves/Courier-Bold.afm", 
+                      family: "Courier-Bold", 
+                      size: 9 
+                    }, 
+                    backgroundColor: "#f1f6ff",
+                    padding: ['0.5em', '0.25em', '0.25em', '0.25em'],
+                    colSpan: 2,
+                    text: `${row[0]}`
+                  }, 
+                  { 
+                    font: { 
+                      src: "./saves/Courier-Bold.afm", 
+                      family: "Courier-Bold", 
+                      size: 10 
+                    }, 
+                    backgroundColor: "#f1f6ff",
+                    padding: ['0.5em', '0.25em', '0.25em', '0.25em'],
+                    text: row[1]
+                  }, 
+                  { 
+                    font: { 
+                      src: "./saves/Courier-Bold.afm", 
+                      family: "Courier-Bold", 
+                      size: 10 
+                    },
+                    backgroundColor: "#f1f6ff",
+                    padding: ['0.5em', '0.25em', '0.25em', '0.25em'],
+                    text: row[2]
+                  }]);
+                PrimaryRows.push(detailsList.length-1);
+                doc3.font("Courier");
+                doc3.fontSize(8);
+                value.details.forEach((detail, i) => {
+                  let dRow;
+                  if(detail[2] == 'sqft') {
+                    dRow = [
+                      {
+                        text: ``,
+                        backgroundColor: "#000",
+                        // textColor: "#fff",
+                      },
+                      {
+                        text: detail[0],
+                        backgroundColor: "#dfdfdf",
+                        colSpan: 1,
+                      },
+                      {
+                        text: ` ${Math.round((detail[3].measurement + Number.EPSILON) * 100) / 100}' x ${detail[3].depth}"`,
+                        backgroundColor: "#dfdfdf",
+                        colSpan: 1,
+                      },
+                      {
+                        text: [...new Set(detail[4])].join(" "),
+                        backgroundColor: "#dfdfdf",
+                      },
+                      {
+                        text: `${Math.round((detail[1] + Number.EPSILON) * 100) / 100}`,
+                        backgroundColor: "#dfdfdf",
+                      }
+                    ]
+                  }
+                  else {
+                    dRow = [
+                      {
+                        text: ``,
+                        backgroundColor: "#000",
+                        // textColor: "#fff",
+                      },
+                      {
+                        text: detail[0],
+                        backgroundColor: "#dfdfdf",
+                        colSpan: 2,
+                      },
+                      {
+                        text: [...new Set(detail[4])].join(" "),
+                        backgroundColor: "#dfdfdf",
+                      },
+                      {
+                        text: `${Math.round((detail[1] + Number.EPSILON) * 100) / 100}`,
+                        backgroundColor: "#dfdfdf",
+                      }
+                    ]
+                  }
+                  detailsList.push(dRow);
+                })
+                let nextPrimary = PrimaryRows.shift();
+                doc3.table({
+                  data: detailsList,
+                  columnStyles: (i) => {
+                    switch(i) {
+                      case 0:
+                        return { width: 25 };
+                      case 1:
+                        return { width: 300 };
+                      case 2:
+                        return { width: 75 };
+                      case 3:
+                        return { width: 50 };
+                      case 4:
+                        return { width: 50 };
+                    }
+                  },
+                  rowStyles: (i) => {
+                    if (i == nextPrimary) {
+                      nextPrimary = PrimaryRows.shift();
+                      return { 
+                        height: 16,
+                        border: {
+                          top: 3
+                        }
+                      }
+                    } else {
+                      return { height: 10 } 
+                    }
+                  }
+                });
+              } else {
+                data.push(row);
+              }
 
             })
             data.sort();
@@ -1275,8 +1284,21 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
             })
           })
   
-          doc2.end();
-          if(generateDoc) {
+          if(!settings.settings.generate_details) {
+            doc3.text(" ");
+            doc3.text(" ");
+            doc3.text(`csv used to generate this data: ${file}`);
+            // console.log(stats);
+            let createdAt = new Date(stats.birthtime);
+            doc3.text(`created: ${createdAt.getDate()}/${createdAt.getMonth()+1}/${createdAt.getFullYear()}-${createdAt.getHours()}:${createdAt.getMinutes()}:${createdAt.getSeconds()}`)
+            let modifiedAt = new Date(stats.mtime);
+            doc3.text(`modified: ${modifiedAt.getDate()}/${modifiedAt.getMonth()+1}/${modifiedAt.getFullYear()}-${modifiedAt.getHours()}:${modifiedAt.getMinutes()}:${modifiedAt.getSeconds()}`)
+            
+            doc3.end();
+          } else {
+            doc2.end();
+          }
+          if(settings.settings.auto_open_word && !devMode) { // auto opens word after 2 second delay
             setTimeout(() => {
               open.openApp(saveLocation, { app: { name: 'word' } });
             }, 2000)
@@ -1300,11 +1322,6 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
 module.exports = { calculateProposal };
 
 
-// totals seems to be working again.
-// fix the proposal side now...
-
-// now remove the price and add a start button
-// then clean up all the commmented code and organize everything
-
-// still need to clean up
-// start button added but needs to update the user on success / failure
+// need to find and fix the waiting after selecting a file
+// usually the first one (save location) is instant
+// but the second (csv) has a pause after selecting that can be 5-6 seconds
