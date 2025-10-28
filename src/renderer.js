@@ -129,7 +129,6 @@ let settingsBtn = document.getElementById("settings-btn").addEventListener('clic
                     <option value="Subject" ${currentSettings.settings.primary_column == "Subject" ? 'Selected' : ''}>Subject</option>
                     <option value="Label" ${currentSettings.settings.primary_column == "Label" ? 'Selected' : ''}>Label</option>
                 </select>
-                <div class="settings-label main-generate-details">use legacy details:<span class="tooltip-generate-details">use the old style totals sheet?</span></div><input id="settings-generate-details" class="settings-input" type="checkbox" ${currentSettings.settings.generate_details ? 'checked' : ''}>
                 <div class="settings-label main-open-word">auto open word:<span class="tooltip-open-word">open proposals automatically in word after creation?</span></div><input id="settings-open-word" class="settings-input" type="checkbox" ${currentSettings.settings.auto_open_word ? 'checked' : ''}>
                 <div class="settings-label main-top-shop">topshop tool subject:<span class="tooltip-top-shop">what subject, label, or secondary column name is being used for top shop items?       ! use a comma to filter multiple subjects ex: Quartz tops, Solid Surface tops</span></div><input id="settings-top-shop-subject" class="settings-inputs" type="text" placeholder="countertops" value="${currentSettings.settings.top_shop_tool_subject}">
                 <div class="settings-label disabled-label">require all fields:</div><input id="settings-require-inputs" class="settings-inputs disabled-input" type="checkbox" disabled ${currentSettings.settings.require_all_fields ? 'checked' : ''}>
@@ -138,14 +137,14 @@ let settingsBtn = document.getElementById("settings-btn").addEventListener('clic
 
             let saveName = document.getElementById('settings-name');
             let primaryColumn = document.getElementById('settings-primary-column');
-            let generateDetails = document.getElementById('settings-generate-details');
+            // let generateDetails = document.getElementById('settings-generate-details');
             let saveOpenWord = document.getElementById('settings-open-word');
             let saveTopShopToolSubject = document.getElementById('settings-top-shop-subject');
             let saveRequireInputs = document.getElementById('settings-require-inputs');
 
             saveName.addEventListener('change', (e) => { currentSettings.info.user = e.target.value });
             primaryColumn.addEventListener('change', (e) => { currentSettings.settings.primary_column = e.target.selectedIndex == 1? "Label" : "Subject" });
-            generateDetails.addEventListener('change', (e) => { console.log(e); currentSettings.settings.generate_details = e.target.checked });
+            // generateDetails.addEventListener('change', (e) => { console.log(e); currentSettings.settings.generate_details = e.target.checked });
             saveOpenWord.addEventListener('change', (e) => { console.log(e); currentSettings.settings.auto_open_word = e.target.checked });
             saveTopShopToolSubject.addEventListener('change', (e) => { currentSettings.settings.top_shop_tool_subject = e.target.value });
             saveRequireInputs.addEventListener('change', (e) => { currentSettings.settings.require_all_inputs = e.target.checked });

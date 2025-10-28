@@ -11,13 +11,13 @@ let loadSettings = (callback) => {
     return fs.readFile(settingsLocation, 'utf8', (error, data) => {
         if(error) {
             if(error.errno == -4058) {
-                console.log(14, "settings does not exist... creating settings.json");
+                console.log("settings does not exist... creating settings.json");
                 fs.writeFile(settingsLocation, JSON.stringify(defaults), (error, data) => {
                     if(error) {
-                        console.log(17, error);
+                        console.log(error);
                         return false;
                     } else {
-                        console.log(20, 'successfully saved defualt settings');
+                        console.log('successfully saved defualt settings');
                         callback(defaults);
                     }
                 })
@@ -52,8 +52,9 @@ let defaults = {
     },
     "settings": {
         "primary_column": "Subject",
-        "generate_details": false, // this is called 'use legacy details' on the client
+        "generate_details": false, // this is called 'use legacy details' on the client ...also... is not currently user changable 
         "auto_open_word": true,
+        "add_page_labels": true,
         "top_shop_tool_subject": "tops",
         "require_all_fields": true,
     }

@@ -4,7 +4,8 @@ const PDFDocument = require("pdfkit");
 const { parse } = require("csv-parse");
 const open = require('open');
 const docx = require("docx");
-
+// let package = require('./package.json');
+let version = '1.0.7';
 let generateDoc = true; // true
 let generateTotals = true; // true
 let isSuccess = true;
@@ -13,6 +14,34 @@ let devMode = false;
 if(process.env.TERM_PROGRAM == 'vscode') {
   devMode = true;
 }
+
+
+// because all the data was so organized i was able to add this simple easy method
+// 
+let calculateRooms = (list) => {
+  let pages = [];
+  let keys = Object.keys(list);
+  keys.forEach((item, i) => {
+    list[item].children.forEach((child, j) => { pages.push(child.page) })
+  })
+  return [...new Set(pages)];
+}
+
+
+
+
+
+
+// 10-28-25
+// finished adding the logic for the add_page_labels toggle
+// still need to actually make the ui toggle for it but it works
+// need to add the subject=exclusion stuff
+// if an excllusion is found in the list of markups we will add it to the proposal exclusion list
+// but also maybe show the exclusions on the details sheet
+// remove them from the job object though 
+
+
+
 
 
 // [
@@ -31,6 +60,137 @@ if(process.env.TERM_PROGRAM == 'vscode') {
 let rows = [];
 
 let calculateProposal = (file, details, saveLocation, settings, error, callback) => {
+  class Item {
+    constructor (name, search, material, unit, groupName, spaceName) {
+      this.name = name;
+      this.search = search;
+      this.material = material;
+      this.unit = unit;
+      this.groupName = groupName;
+      this.spaceName = spaceName;
+      this.children = [];
+    }
+
+    clone () {
+      let newItem = new Item(this.name, this.search, this.material, this.unit, this.groupName, this.spaceName);
+      this.children.forEach(child => {
+        newItem.addChild(child.clone())
+      })
+      return newItem;
+    }
+
+    addChild(child) {
+      if(Array.isArray(child)) {
+        this.children.concat(child);
+      } else {
+        this.children.push(child);
+      }
+    }
+
+    isTops () {
+      let isTop = false;
+      ['tops', 'countertops'].concat(settings.settings.top_shop_tool_subject.split(',')).forEach(v => {
+        if(this.search == v.trim()) {
+          isTop = true;
+        }
+      })
+      return isTop;
+    }
+
+    getUnit () {
+      if(this.children.length > 0) {
+        let firstChild = this.children[0];
+        if(firstChild.unit == 'sqft' || firstChild.unit == 'sf') {
+          return 'sqft';
+        } else if(firstChild.unit == 'Count') {
+          return 'X';
+        } else {
+          return 'LF';
+        }
+        
+      }
+    }
+
+    writeLine () {
+      let total = this.calculateTotal();
+      let unit = this.getUnit();
+      if(unit == 'X') {
+        return `(${Math.ceil(total)}${unit}) ${this.name}`
+      } else {
+        return `${Math.ceil(total)} ${unit} of ${this.name}`;
+      }
+    }
+
+    calculateTotal() {
+      // add up all children and return the total
+      return this.children.reduce((total, current) => {
+        return total + current.calculateMeasurement()
+      }, 0);
+    }
+
+    flattenChildren () {
+      // join same room / same depth / children
+      // this is certainly not efficient...
+      // I am comparing each child to each other child
+      // shouldnt be an issue for this scale of items but worth knowing
+      let shortList = Object.values(this.children.reduce((accumulator, current) => {
+        let roomName = `${current.spaceName}-${current.depth}-${current.comment}`;
+        if(!accumulator[roomName]) {
+          accumulator[roomName] = current.clone();
+        } else {
+          accumulator[roomName].measurement += current.measurement;
+        }
+        return accumulator;
+      }, {}))
+      return shortList;
+    }
+  }
+
+  class Child {
+    constructor (name, search, measurement, depth, unit, groupName, spaceName, page, comment, excluded) {
+      this.name = name;
+      this.search = search;
+      this.measurement = measurement;
+      this.depth = depth;
+      this.unit = unit;
+      this.groupName = groupName;
+      this.spaceName = spaceName;
+      this.page = page;
+      this.comment = comment;
+      this.excluded = excluded;
+    }
+
+    clone () {
+      return new Child(this.name, this.search, this.measurement, this.depth, this.unit, this.groupName, this.spaceName, this.page, this.comment, this.excluded);
+    }
+
+    calculateMultiplier () {
+      let roomarray = this.spaceName.split(" ");
+      let n = 1;
+      if (roomarray[0].toLowerCase().includes("x)")) {
+        n = roomarray[0].slice(1, roomarray[0].length - 2);
+      } else if (roomarray[0].toLowerCase().includes("(x")) {
+        n = roomarray[0].slice(2, roomarray[0].length - 1);
+      } else if (roomarray[roomarray.length - 1].toLowerCase().includes("x)")) {
+        n = roomarray[roomarray.length - 1].slice(1, roomarray[roomarray.length - 1].length - 2);
+      } else if (roomarray[roomarray.length - 1].toLowerCase().includes("(x")) {
+        n = roomarray[roomarray.length - 1].slice(2, roomarray[roomarray.length - 1].length - 1);
+      } else {
+        // none
+      }
+      return n;
+    }
+
+    calculateMeasurement () {
+      if(this.depth > 0) {
+        this.unit = 'sqft';
+        return (this.measurement * (this.depth / 12)) * this.calculateMultiplier();
+      } else {
+        return this.measurement * this.calculateMultiplier();
+      }
+    }
+  }
+
   console.log("file: ", file);
   console.log("details: ", details);
   console.log("saveLocation: ", saveLocation);
@@ -65,110 +225,118 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
             row[columns[j]] = rows[i][j];
           }
 
+          // JOB
+
           if(!row['Group']) { row['Group'] = 'Base Bid' } // a blank group will be changed to 'Base Bid'
 
-          // Job
-          // loops through each row of the csv and organizes into job > groups > rooms > items
-          // be careful changing refs to the job object because many things rely on it
-          // pass by ref vs pass by val
           if(job.groups[row['Group']]) {
             if(job.groups[row['Group']].rooms[row['Space']]) {
               if(job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`]) { // old item
-                job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`].measurement += Number(row['Measurement']);
+                job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`].addChild(new Child(
+                  `${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`,
+                  row[searchKey],
+                  Number(row['Measurement']),
+                  row['Depth'] ? row['Depth'] : "",
+                  row['Depth'] > 0 ? 'sqft' : row['Measurement Unit'],
+                  row['Group'],
+                  row['Space'],
+                  row['Page Label'],
+                  row['Comment'],
+                  false,
+                ))
               } else { // new item
-                job.groups[row['Group']].rooms[row['Space']].pages.push(row['Page Label']);
-                job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`] = {
-                  name: row[toolKey],
-                  search: row[searchKey],
-                  measurement: Number(row['Measurement']),
-                  unit: row['Measurement Unit'],
-                  material: row['Material'] || '*',
-                  depth: Number(row['Depth']) || null,
-                  groupName: row['Group'],
-                  spaceName: row['Space'],
-                  excluded: false
-                }
+                job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`] = new Item(
+                  `${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`, 
+                  row[searchKey], 
+                  row['Material'] || '*',
+                  row['Depth'] > 0 ? 'sqft' : row['Measurement Unit'],
+                  row['Group'],
+                  row['Space'],
+                );
+                job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`].addChild(new Child(
+                  `${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`,
+                  row[searchKey],
+                  Number(row['Measurement']),
+                  row['Depth'] ? row['Depth'] : "",
+                  row['Depth'] > 0 ? 'sqft' : row['Measurement Unit'],
+                  row['Group'],
+                  row['Space'],
+                  row['Page Label'],
+                  row['Comment'],
+                  false,
+                ))
               }
             } else { // new space
-              job.groups[row['Group']].rooms[row['Space']] = { items: {}, pages: [] };
-              job.groups[row['Group']].rooms[row['Space']].pages.push(row['Page Label']);
-              job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`] = {
-                name: row[toolKey],
-                search: row[searchKey],
-                measurement: Number(row['Measurement']),
-                unit: row['Measurement Unit'],
-                material: row['Material'] || '*',
-                depth: Number(row['Depth']) || null,
-                groupName: row['Group'],
-                spaceName: row['Space'],
-                excluded: false
-              }
+              job.groups[row['Group']].rooms[row['Space']] = { items: {} };
+              job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`] = new Item(
+                `${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`, 
+                row[searchKey], 
+                row['Material'] || '*',
+                row['Depth'] > 0 ? 'sqft' : row['Measurement Unit'],
+                row['Group'],
+                row['Space'],
+              );
+              job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`].addChild(new Child(
+                `${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`,
+                row[searchKey],
+                Number(row['Measurement']),
+                row['Depth'] ? row['Depth'] : "",
+                row['Depth'] > 0 ? 'sqft' : row['Measurement Unit'],
+                row['Group'],
+                row['Space'],
+                row['Page Label'],
+                row['Comment'],
+                false,
+              ))
             }
           } else { // new group
             job.groups[row['Group']] = { rooms: {} };
-            job.groups[row['Group']].rooms[row['Space']] = { items: {}, pages: [] };
-            job.groups[row['Group']].rooms[row['Space']].pages.push(row['Page Label']);
-            job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`] = {
-              name: row[toolKey],
-              search: row[searchKey],
-              measurement: Number(row['Measurement']),
-              unit: row['Measurement Unit'],
-              material: row['Material'] || '*',
-              depth: Number(row['Depth']) || null,
-              groupName: row['Group'],
-              spaceName: row['Space'],
-              excluded: false
-            }
+            job.groups[row['Group']].rooms[row['Space']] = { items: {} };
+            job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`] = new Item(
+              `${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`, 
+              row[searchKey], 
+              row['Material'] || '*',
+              row['Depth'] > 0 ? 'sqft' : row['Measurement Unit'],
+              row['Group'],
+              row['Space'],
+            );
+            job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`].addChild(new Child(
+              `${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`,
+              row[searchKey],
+              Number(row['Measurement']),
+              row['Depth'] ? row['Depth'] : "",
+              row['Depth'] > 0 ? 'sqft' : row['Measurement Unit'],
+              row['Group'],
+              row['Space'],
+              row['Page Label'],
+              row['Comment'],
+              false,
+            ))
           }
         }
 
 
         // TOTALS
-        // uses the job object to make a totals object
-        // when saving refs to the job a deepcopy is used (JSON.parse(JSON.stringify(x)))
-        // this lets the document maker make changes in place to the job object without changing the totals
+
         Object.keys(job.groups).forEach(group => {
           if(!totals.groups[group]) {
             totals.groups[group] = { items: {} }
           }
-
           Object.keys(job.groups[group].rooms).forEach(room => {
-            let roomarray = room.split(" ");
-            let n = 1;
-            if (roomarray[0].toLowerCase().includes("x)")) {
-              n = roomarray[0].slice(1, roomarray[0].length - 2);
-            } else if (roomarray[0].toLowerCase().includes("(x")) {
-              n = roomarray[0].slice(2, roomarray[0].length - 1);
-            } else if (roomarray[roomarray.length - 1].toLowerCase().includes("x)")) {
-              n = roomarray[roomarray.length - 1].slice(1, roomarray[roomarray.length - 1].length - 2);
-            } else if (roomarray[roomarray.length - 1].toLowerCase().includes("(x")) {
-              n = roomarray[roomarray.length - 1].slice(2, roomarray[roomarray.length - 1].length - 1);
-            } else {
-              // none
-            }
-
             Object.keys(job.groups[group].rooms[room].items).forEach(item => {
+              let jobItem = job.groups[group].rooms[room].items[item];
               if(totals.groups[group].items[item]) { // old item
-                if(job.groups[group].rooms[room].items[item].depth) {
-                  totals.groups[group].items[item].measurement += (job.groups[group].rooms[room].items[item].measurement * (job.groups[group].rooms[room].items[item].depth / 12)) * n;
-                  totals.groups[group].items[item].details.push([job.groups[group].rooms[room].items[item].spaceName, (job.groups[group].rooms[room].items[item].measurement * (job.groups[group].rooms[room].items[item].depth / 12)) * n, 'sqft', JSON.parse(JSON.stringify(job.groups[group].rooms[room].items[item])), job.groups[group].rooms[room].pages]);
-                } else {
-                  totals.groups[group].items[item].measurement += job.groups[group].rooms[room].items[item].measurement * n;
-                  totals.groups[group].items[item].details.push([job.groups[group].rooms[room].items[item].spaceName, job.groups[group].rooms[room].items[item].measurement * n, job.groups[group].rooms[room].items[item].unit, JSON.parse(JSON.stringify(job.groups[group].rooms[room].items[item])), job.groups[group].rooms[room].pages]);
-                }
+                jobItem.children.forEach(child => {
+                  totals.groups[group].items[item].addChild(child.clone())
+                })
               } else { // new item
-                if(job.groups[group].rooms[room].items[item].depth) { // depth should be in inches
-                  totals.groups[group].items[item] = { measurement: (job.groups[group].rooms[room].items[item].measurement * (job.groups[group].rooms[room].items[item].depth / 12)) * n, unit: 'sqft', details: [[job.groups[group].rooms[room].items[item].spaceName, (job.groups[group].rooms[room].items[item].measurement * (job.groups[group].rooms[room].items[item].depth / 12)) * n, 'sqft', JSON.parse(JSON.stringify(job.groups[group].rooms[room].items[item])), job.groups[group].rooms[room].pages]] }
-                } else {
-                  totals.groups[group].items[item] = { measurement: job.groups[group].rooms[room].items[item].measurement * n, unit: job.groups[group].rooms[room].items[item].unit, details: [[job.groups[group].rooms[room].items[item].spaceName, job.groups[group].rooms[room].items[item].measurement * n, job.groups[group].rooms[room].items[item].unit, JSON.parse(JSON.stringify(job.groups[group].rooms[room].items[item])), job.groups[group].rooms[room].pages]] }
-                }
+                totals.groups[group].items[item] = jobItem.clone();
               }
             })
           }) 
         })
 
 
-        
         // Word DOCX
         // uses the job object to generate text for the proposal
         // lines needed in the proposal are pushing into the scopelist array
@@ -189,14 +357,6 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
           scopelist.push(new docx.Paragraph({
             children: [
               new docx.TextRun({
-                text: ``,
-                size: 24,
-              }),
-            ]
-          }))
-          scopelist.push(new docx.Paragraph({
-            children: [
-              new docx.TextRun({
                 text: `${group}`,
                 bold: true,
                 size: 24,
@@ -204,13 +364,12 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
               })
             ]
           }))
-          let rooms = Object.keys(job.groups[group].rooms);
-          for(let room = 0; room < rooms.length; room++) { // rooms
-            let items = Object.keys(job.groups[group].rooms[rooms[room]].items);
+          Object.keys(job.groups[group].rooms).forEach((room, i) => {
+            let items = job.groups[group].rooms[room].items;
             scopelist.push(new docx.Paragraph({
               children: [
                 new docx.TextRun({
-                  text: `${rooms[room]} ${job.groups[group].rooms[rooms[room]].pages.length > 0 ? 'as seen on (' + [...new Set(job.groups[group].rooms[rooms[room]].pages)].join(", ") + ')' : ''}`,
+                  text: settings.settings.add_page_labels ? `${room} as seen on [${calculateRooms(items).join(', ')}]` : `${room}`,
                   bold: true,
                   size: 24,
                 })
@@ -221,56 +380,30 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
               }
             }));
 
-            // tops should read as LF on the proposal while all other items with depth should be sqft
-            for(let item = 0; item < items.length; item++) { // items
-              let thing = job.groups[group].rooms[rooms[room]].items[items[item]]
-              if(thing.depth > 0) { // this double if statement is for the special tops case
-                let topshopSubjects = settings.settings.top_shop_tool_subject.split(",");
-                topshopSubjects.push("tops", "countertops");
-                let match = false;
-                topshopSubjects.forEach(subject => {
-                  subject = subject.trim();
-                  console.log(subject);
-                  if (thing.search == subject) match = true;
+            Object.keys(job.groups[group].rooms[room].items).forEach(item => {
+              let items = job.groups[group].rooms[room].items;
+              if(items[item].isTops()) {
+                let childList = items[item].flattenChildren();
+                childList.forEach(child => {
+                  let LF = Math.ceil(child.measurement / (child.depth / 12));
+                  scopelist.push(new docx.Paragraph({
+                    children: [
+                      new docx.TextRun({
+                        text: `${LF} LF of ${child.name}`,
+                        size: 24,
+                      })
+                    ],
+                    numbering: {
+                      reference: "my-bullets",
+                      level: 0,
+                    }
+                  }));
                 })
-                if(match) {} // keep as lf
-                else { // changes all non top items to sqft !WARNING !THIS CHANGES THE JOB OBJECT AND ALL REFS TO THE JOB OBJECT!
-                  job.groups[group].rooms[rooms[room]].items[items[item]].measurement = (job.groups[group].rooms[rooms[room]].items[items[item]].measurement * (job.groups[group].rooms[rooms[room]].items[items[item]].depth / 12));
-                  job.groups[group].rooms[rooms[room]].items[items[item]].unit = 'sqft'
-                  console.log(job.groups[group].rooms[rooms[room]].items[items[item]])
-                }
-              }
-              if(job.groups[group].rooms[rooms[room]].items[items[item]].unit == 'Count') {
-                scopelist.push(new docx.Paragraph({
-                  children: [
-                    new docx.TextRun({
-                      text: `(${Math.ceil(job.groups[group].rooms[rooms[room]].items[items[item]].measurement)}X) ${items[item]}`,
-                      size: 24,
-                    })
-                  ],
-                  numbering: {
-                    reference: "my-bullets",
-                    level: 0,
-                  }
-                }));
-              } else if (job.groups[group].rooms[rooms[room]].items[items[item]].unit == 'sqft' || job.groups[group].rooms[rooms[room]].items[items[item]].unit == 'sf') {
-                scopelist.push(new docx.Paragraph({
-                  children: [
-                    new docx.TextRun({
-                      text: `${Math.ceil(job.groups[group].rooms[rooms[room]].items[items[item]].measurement)} SQFT of ${items[item]}`,
-                      size: 24,
-                    })
-                  ],
-                  numbering: {
-                    reference: "my-bullets",
-                    level: 0,
-                  }
-                }));
               } else {
                 scopelist.push(new docx.Paragraph({
                   children: [
                     new docx.TextRun({
-                      text: `${Math.ceil(job.groups[group].rooms[rooms[room]].items[items[item]].measurement)} LF of ${items[item]}`,
+                      text: items[item].writeLine(),
                       size: 24,
                     })
                   ],
@@ -280,8 +413,9 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                   }
                 }));
               }
-            }
-          }
+            })
+          })
+
           scopelist.push(new docx.Paragraph({
             children: [
               new docx.TextRun({
@@ -1090,6 +1224,10 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
 
         // save a second document of the same name + '-totals'
         // show totals for each item in the job
+
+        // totals are not being generated but doc2 and doc3 are sort of woven together
+        // will remove the doc2 stuff at some point
+        // currently all doc2 code is not needed
         if(isSuccess && generateTotals) {
           let saveLocation2 = saveLocation.split('.docx')[0] + "-totals.pdf";
           let saveLocation3 = saveLocation.split('.docx')[0] + "-details.pdf";
@@ -1098,7 +1236,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
           const doc3 = new PDFDocument({ size: "LETTER", margins: { top: 25, bottom: 25, left: 50, right: 50 } });
 
           let date = new Date();
-          let dateStr = ` ${date.getMonth()+1}/${date.getDate()}/${date.getFullYear()} - ${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`;
+          let dateStr = ` ${date.getMonth()+1}/${date.getDate()}/${date.getFullYear()} - ${date.getHours() > 12 ? date.getHours()-12:date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`;
           let groupStr = `number of price groups: [${Object.keys(job.groups).length}]`
 
           if(!settings.settings.generate_details) {
@@ -1107,9 +1245,11 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
             doc3.fontSize(10);
             doc3.font("Courier-Bold");
             doc3.text(`Job: ${details.job} | Created: ${dateStr}`, { width: 425 });
-            doc3.text(`Bid Date: ${details.date}`, { width: 425 });
+            doc3.text(`Bid Date: ${details.date} | To: ${details.contractor}`, { width: 425 });
             doc3.text(groupStr, { width: 425 });
+            doc3.fontSize(8);
             doc3.text(saveLocation3, { width: 425 });
+            doc3.fontSize(10);
             doc3.text(" ");
             doc3.text(" ");
           } else {
@@ -1132,14 +1272,15 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
               doc2.text(`${group}`);
             }
             let data = [];
+
+            // this whole thing is such a mess now
             Object.keys(totals.groups[group].items).sort().forEach((name, j) => {
               let value = totals.groups[group].items[name];
-              let row = [name, value.unit == `ft' in"` ? "LF" : value.unit == `ft` ? "LF" : value.unit, Math.ceil(value.measurement)];
-              
-
-              if(!settings.settings.generate_details) {
+              let row = [name, value.unit == `ft' in"` ? "LF" : value.unit == `ft` ? "LF" : value.unit, Math.ceil(value.calculateTotal())];
+              if(!settings.settings.generate_details) { // primary item row - numbered with larger font
                 let PrimaryRows = [];
                 let detailsList = [];
+                let commentList = [];
                 detailsList.push([
                   { 
                     font: { 
@@ -1151,7 +1292,9 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                     textColor: "#fff",
                     padding: ['0.5em', '0.25em', '0.25em', '0.25em'],
                     colSpan: 1,
-                    text: `${j+1}.`
+                    text: `${j+1}.`,
+                    align: { x: 'left', y: 'center' },
+                    borderColor: { bottom: '#000', top: '#000' },
                   }, 
                   { 
                     font: { 
@@ -1161,8 +1304,10 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                     }, 
                     backgroundColor: "#f1f6ff",
                     padding: ['0.5em', '0.25em', '0.25em', '0.25em'],
-                    colSpan: 2,
-                    text: `${row[0]}`
+                    colSpan: 3,
+                    text: `${row[0]}`,
+                    align: { x: 'left', y: 'center' },
+                    borderColor: { bottom: '#000', top: '#000' },
                   }, 
                   { 
                     font: { 
@@ -1172,75 +1317,211 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                     }, 
                     backgroundColor: "#f1f6ff",
                     padding: ['0.5em', '0.25em', '0.25em', '0.25em'],
-                    text: row[1]
+                    text: row[1],
+                    align: { x: 'left', y: 'center' },
+                    borderColor: { bottom: '#000', top: '#000' },
                   }, 
                   { 
                     font: { 
                       src: "./saves/Courier-Bold.afm", 
                       family: "Courier-Bold", 
-                      size: 10 
+                      size: 10,
+                      align: { x: 'left', y: 'center' }, 
                     },
                     backgroundColor: "#f1f6ff",
                     padding: ['0.5em', '0.25em', '0.25em', '0.25em'],
-                    text: row[2]
+                    text: row[2],
+                    align: { x: 'left', y: 'center' },
+                    borderColor: { bottom: '#000', top: '#000' },
                   }]);
                 PrimaryRows.push(detailsList.length-1);
                 doc3.font("Courier");
                 doc3.fontSize(8);
-                value.details.forEach((detail, i) => {
+                value.flattenChildren().forEach((child, i) => {
+                  let isComment = child.comment ? true : false
                   let dRow;
-                  if(detail[2] == 'sqft') {
-                    dRow = [
-                      {
-                        text: ``,
-                        backgroundColor: "#000",
-                        // textColor: "#fff",
-                      },
-                      {
-                        text: detail[0],
-                        backgroundColor: "#dfdfdf",
-                        colSpan: 1,
-                      },
-                      {
-                        text: ` ${Math.round((detail[3].measurement + Number.EPSILON) * 100) / 100}' x ${detail[3].depth}"`,
-                        backgroundColor: "#dfdfdf",
-                        colSpan: 1,
-                      },
-                      {
-                        text: [...new Set(detail[4])].join(" "),
-                        backgroundColor: "#dfdfdf",
-                      },
-                      {
-                        text: `${Math.round((detail[1] + Number.EPSILON) * 100) / 100}`,
-                        backgroundColor: "#dfdfdf",
-                      }
-                    ]
-                  }
-                  else {
-                    dRow = [
-                      {
-                        text: ``,
-                        backgroundColor: "#000",
-                        // textColor: "#fff",
-                      },
-                      {
-                        text: detail[0],
-                        backgroundColor: "#dfdfdf",
-                        colSpan: 2,
-                      },
-                      {
-                        text: [...new Set(detail[4])].join(" "),
-                        backgroundColor: "#dfdfdf",
-                      },
-                      {
-                        text: `${Math.round((detail[1] + Number.EPSILON) * 100) / 100}`,
-                        backgroundColor: "#dfdfdf",
-                      }
-                    ]
+                  if(!isComment) {
+                    if(child.unit == 'sqft') { // 5 col SQFT
+                      dRow = [
+                        {
+                          text: ``,
+                          backgroundColor: "#000",
+                        },
+                        {
+                          text: child.spaceName,
+                          backgroundColor: "#dfdfdf",
+                          colSpan: 2,
+                          align: { x: 'left', y: 'center' },
+                          borderColor: { bottom: '#000', top: '#000' },
+                        },
+                        {
+                          text: ` ${Math.trunc(child.depth)}" x ${Math.round((child.measurement + Number.EPSILON) * 100) / 100}'`, // round the measurement to the nearest 2 decimals and remove all decimals from the depth (should always ve a whole number in inches)
+                          backgroundColor: "#dfdfdf",
+                          colSpan: 1,
+                          align: { x: 'left', y: 'center' },
+                          borderColor: { bottom: '#000', top: '#000' },
+                        },
+                        {
+                          text: child.page,
+                          backgroundColor: "#dfdfdf",
+                          align: { x: 'left', y: 'center' },
+                          borderColor: { bottom: '#000', top: '#000' },
+                        },
+                        {
+                          text: `${Math.round((child.calculateMeasurement() + Number.EPSILON) * 100) / 100}`,
+                          backgroundColor: "#dfdfdf",
+                          align: { x: 'left', y: 'center' },
+                          borderColor: { bottom: '#000', top: '#000' },
+                        }
+                      ]
+                    }
+                    else { // 4 cols everything else
+                      dRow = [
+                        {
+                          text: ``,
+                          backgroundColor: "#000",
+                        },
+                        {
+                          text: child.spaceName,
+                          backgroundColor: "#dfdfdf",
+                          colSpan: 3,
+                          align: { x: 'left', y: 'center' },
+                          borderColor: { bottom: '#000', top: '#000' },
+                        },
+                        {
+                          text: child.page,
+                          backgroundColor: "#dfdfdf",
+                          align: { x: 'left', y: 'center' },
+                          borderColor: { bottom: '#000', top: '#000' },
+                        },
+                        {
+                          text: `${Math.round((child.calculateMeasurement() + Number.EPSILON) * 100) / 100}`,
+                          backgroundColor: "#dfdfdf",
+                          align: { x: 'left', y: 'center' },
+                          borderColor: { bottom: '#000', top: '#000' },
+                        }
+                      ]
+                    }
+                  } else {
+                    if(child.unit == 'sqft') { // 5 col SQFT
+                      dRow = [
+                        {
+                          text: ``,
+                          backgroundColor: "#000",
+                        },
+                        {
+                          text: '*',
+                          backgroundColor: '#bbbbbb',
+                          align: { x: 'center', y: 'bottom' },
+                          border: { bottom: 0, right: 0 },
+                          borderColor: { bottom: '#000', top: '#000' },
+                        },
+                        {
+                          text: child.spaceName,
+                          backgroundColor: "#dfdfdf",
+                          align: { x: 'left', y: 'center' },
+                          borderColor: { bottom: '#000', top: '#000' },
+                        },
+                        {
+                          text: ` ${Math.trunc(child.depth)}" x ${Math.round((child.measurement + Number.EPSILON) * 100) / 100}'`, // round the measurement to the nearest 2 decimals and remove all decimals from the depth (should always ve a whole number in inches)
+                          backgroundColor: "#dfdfdf",
+                          colSpan: 1,
+                          align: { x: 'left', y: 'center' },
+                          borderColor: { bottom: '#000', top: '#000' },
+                        },
+                        {
+                          text: child.page,
+                          backgroundColor: "#dfdfdf",
+                          align: { x: 'left', y: 'center' },
+                          borderColor: { bottom: '#000', top: '#000' },
+                        },
+                        {
+                          text: `${Math.round((child.calculateMeasurement() + Number.EPSILON) * 100) / 100}`,
+                          backgroundColor: "#dfdfdf",
+                          align: { x: 'left', y: 'center' },
+                          borderColor: { bottom: '#000', top: '#000' },
+                        }
+                      ]
+                    }
+                    else { // 4 cols everything else
+                      dRow = [
+                        {
+                          text: ``,
+                          backgroundColor: "#000",
+                        },
+                        {
+                          text: '*',
+                          backgroundColor: '#bbbbbb',
+                          align: { x: 'center', y: 'bottom' },
+                          border: { bottom: 0, right: 0 },
+                          borderColor: { bottom: '#000', top: '#000' },
+                        },
+                        {
+                          text: child.spaceName,
+                          backgroundColor: "#dfdfdf",
+                          colSpan: 2,
+                          align: { x: 'left', y: 'center' },
+                          borderColor: { bottom: '#000', top: '#000' },
+                        },
+                        {
+                          text: child.page,
+                          backgroundColor: "#dfdfdf",
+                          align: { x: 'left', y: 'center' },
+                          borderColor: { bottom: '#000', top: '#000' },
+                        },
+                        {
+                          text: `${Math.round((child.calculateMeasurement() + Number.EPSILON) * 100) / 100}`,
+                          backgroundColor: "#dfdfdf",
+                          align: { x: 'left', y: 'center' },
+                          borderColor: { bottom: '#000', top: '#000' },
+                        }
+                      ]
+                    }
                   }
                   detailsList.push(dRow);
+                  if(child.comment) {
+                    console.log(child.comment); // ↳
+                    let cRow = [
+                      {
+                        font: { 
+                          src: "./saves/Courier-Bold.afm", 
+                          family: "Courier-Bold", 
+                          size: 8 
+                        }, 
+                        text: ``,
+                        backgroundColor: "#000",
+                        textColor: "#fff",
+                        colSpan: 1,
+                      },
+                      {
+                        font: { 
+                          src: "./saves/Courier-Bold.afm", 
+                          family: "Courier-Bold", 
+                          size: 8 
+                        },
+                        border: { top: 0, right: 0 },
+                        text: '',
+                        backgroundColor: '#bbbbbb',
+                        textColor: '#000',
+                        align: { x: 'center', y: 'center' }
+                      },
+                      { 
+                        font: {
+                          size: 8,
+                        },
+                        text: `${child.comment}`,
+                        border: { left: 0 },
+                        backgroundColor: "#bbbbbb",
+                        colSpan: 4,
+                        align: { x: 'left', y: 'center' },
+                      },
+                    ];
+                    detailsList.push(cRow);
+                    if(child.comment) { if(child.comment.length > 75) { commentList.push(detailsList.length-1); }}
+                  }
                 })
                 let nextPrimary = PrimaryRows.shift();
+                let nextComment = commentList.shift();
                 doc3.table({
                   data: detailsList,
                   columnStyles: (i) => {
@@ -1248,13 +1529,15 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                       case 0:
                         return { width: 25 };
                       case 1:
-                        return { width: 300 };
+                        return { width: 15 };
                       case 2:
-                        return { width: 75 };
+                        return { width: 285 };
                       case 3:
-                        return { width: 50 };
+                        return { width: 90 };
                       case 4:
-                        return { width: 50 };
+                        return { width: 60 };
+                      case 4:
+                        return { width: 40 };
                     }
                   },
                   rowStyles: (i) => {
@@ -1266,8 +1549,15 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                           top: 3
                         }
                       }
+                    } else if (i == nextComment) {
+                      console.log("willow")
+                      nextComment = commentList.shift();
+                      return { border: { bottom: 0.5, top: 0.5 }, }
                     } else {
-                      return { height: 10 } 
+                      return { 
+                        height: 10,
+                        border: { bottom: 0.5, top: 0.5 },
+                      } 
                     }
                   }
                 });
@@ -1287,13 +1577,14 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
           if(!settings.settings.generate_details) {
             doc3.text(" ");
             doc3.text(" ");
+            doc3.fontSize(6);
             doc3.text(`csv used to generate this data: ${file}`);
-            // console.log(stats);
             let createdAt = new Date(stats.birthtime);
-            doc3.text(`created: ${createdAt.getDate()}/${createdAt.getMonth()+1}/${createdAt.getFullYear()}-${createdAt.getHours()}:${createdAt.getMinutes()}:${createdAt.getSeconds()}`)
             let modifiedAt = new Date(stats.mtime);
-            doc3.text(`modified: ${modifiedAt.getDate()}/${modifiedAt.getMonth()+1}/${modifiedAt.getFullYear()}-${modifiedAt.getHours()}:${modifiedAt.getMinutes()}:${modifiedAt.getSeconds()}`)
-            
+            doc3.text(`created: ${createdAt.getMonth()+1}/${createdAt.getDate()}/${createdAt.getFullYear()}-${createdAt.getHours()}:${createdAt.getMinutes()}:${createdAt.getSeconds()} | modified: ${modifiedAt.getMonth()+1}/${modifiedAt.getDate()}/${modifiedAt.getFullYear()}-${modifiedAt.getHours()}:${modifiedAt.getMinutes()}:${modifiedAt.getSeconds()}`)
+            let timeDif = date.getTime() - createdAt.getTime();
+            doc3.text(`s:${Math.round((timeDif/1000 + Number.EPSILON) * 100) / 100}m:${Math.round((timeDif/(1000*60) + Number.EPSILON) * 100) / 100}h:${Math.round((timeDif/(1000*60*60) + Number.EPSILON) * 100) / 100}`);
+            doc3.text(`version: ${version}`)
             doc3.end();
           } else {
             doc2.end();
@@ -1320,8 +1611,3 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
 };
 
 module.exports = { calculateProposal };
-
-
-// need to find and fix the waiting after selecting a file
-// usually the first one (save location) is instant
-// but the second (csv) has a pause after selecting that can be 5-6 seconds

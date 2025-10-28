@@ -4,46 +4,28 @@ const path = require('node:path');
 let csvMethods = require("./index.js");
 let Settings = require("./settings.js");
 
+// you will see similar code block all over
+// this just tests to see if the program is being run from a dev environment
+// if the program running the code is 'vscode' then we are not in production...
+// things like opening work or the default save location are changed to be quicker for testing 
+// also most of the file paths change when installed vs run from this script
 let devMode = false;
 if(process.env.TERM_PROGRAM == 'vscode') {
   devMode = true;
 }
-// app.disableHardwareAcceleration(); 
+
+// holder variables so all the methods have access to these
+let saveLocation = "";
+let csvLocation = "";
 let mainWindow;
-// var settings;
+
+// this file is the heart of the program
+// despite not being all that long it creates the window and renders the html
+// as well as handling all communication to the client
+// the middle man if you will
 
 
-
-
-
-
-
-
-
-
-
-
-// TO DO!
-// 1 use the label/subject to change the output from the proposal/totals
-// - tops should be sqft on the totals and lf on the proposal but other items with depth that are not tops should stay sqft on both
-// 2 add an aditional output section on the totals or a whole new file for item by room
-// - item by room shows each item followed by a list of each room it appears and the measurement in that room
-
-// Base Cabinets (Plam)
-// ~ 101 Men's Restroom 9 LF
-// ~ 102 Women's Restroom 9 LF
-
-
-
-
-
-
-
-
-
-let state = "root";
-
-
+// does what it says on the tin
 const createWindow = () => {
   mainWindow = new BrowserWindow({
     width: 400,
@@ -56,20 +38,17 @@ const createWindow = () => {
   })
   mainWindow.loadFile('src/index.html');
   !devMode ? mainWindow.menuBarVisible = false : mainWindow.menuBarVisible = true;
-  
 }
 
-let saveLocation = "";
-let csvLocation = "";
-
+// runs when a user clicks start
 let handleStart = (event, details) => {
   let callback = (success) => {
-    // console.log('good job!');
     mainWindow.webContents.send('proposal-success', true);
   };
   csvMethods.calculateProposal(csvLocation, details, saveLocation, settings, handleError, callback);
 }
 
+// runs when a user clicks select csv
 let openFile = (event) => {
   console.log("opening file");
   let filePath = dialog.showOpenDialog({
@@ -87,6 +66,7 @@ let openFile = (event) => {
   })
 }
 
+// runs when a user clicks select save loaction
 let handleSaveLocation = (event) => {
   dialog.showSaveDialog({
     title: 'Select location to save proposal',
@@ -108,14 +88,17 @@ let handleSaveLocation = (event) => {
   });
 }
 
+// sends an error code to the client to be handled there
 let handleError = (error, code) => {
   mainWindow.webContents.send('error', error, code);
 }
 
+// runs when the client wants the current saved settings
 let handleGetSettings = (event) => {
   mainWindow.webContents.send('return-settings', true, settings);
 }
 
+// runs when the client sends a new settings object
 let handleSetSettings = async (event, newSettings) => {
   Settings.updateSetting(newSettings)
   .then(success => {
@@ -128,6 +111,7 @@ let handleSetSettings = async (event, newSettings) => {
   })
 }
 
+// runs on startup to define the api endpoints
 app.whenReady().then(() => {
   createWindow();
   ipcMain.on('open-file', openFile);
@@ -137,6 +121,8 @@ app.whenReady().then(() => {
   ipcMain.on('start', handleStart);
 })
 
+// runs iff all the windows are closed to end the program
+// remove to make one of those annoying apps that you have to force quit to actually close
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
@@ -151,24 +137,4 @@ let saveSettings = (data) => {
 
 Settings.loadSettings(saveSettings);
 
-
-
-// maybe add auto open in word - done ✔️
-
-// finish settings
-// add settings screen
-// add more error handling
-// recent jobs
-// batch jobs
-// make n copies of proposals with different details
-// walter does not get a totals sheet when generating ✔️
-// remove sqft from proposal and just use measurement ✔️
-
-// later - rework the client with react and allow for more screens
-// setup screen that allows for removing room/items from proposal/totals
-
-
-// test for a bunch of different things
-// test if room labels being on or off works
-// test for depths being on and off
-// test for anything else relating to the changes made since last friday
+// the proposal generation is not working right...
