@@ -4,8 +4,7 @@ const PDFDocument = require("pdfkit");
 const { parse } = require("csv-parse");
 const open = require('open');
 const docx = require("docx");
-// let package = require('./package.json');
-let version = '1.0.7';
+let version = '1.0.9';
 let generateDoc = true; // true
 let generateTotals = true; // true
 let isSuccess = true;
@@ -15,9 +14,8 @@ if(process.env.TERM_PROGRAM == 'vscode') {
   devMode = true;
 }
 
-
-// because all the data was so organized i was able to add this simple easy method
-// 
+// calculates the unique page labels for all children of an Item
+// could maybe be a class method
 let calculateRooms = (list) => {
   let pages = [];
   let keys = Object.keys(list);
@@ -30,6 +28,12 @@ let calculateRooms = (list) => {
 
 
 
+// 3/10/26
+// these is a bug where the incorrect value is shown on the proposal for topshop/sqft items
+// it is showing the sqft value but calling it LF
+// need to properly convert back to a linear foot on the proposal
+
+
 
 
 // 10-28-25
@@ -40,6 +44,10 @@ let calculateRooms = (list) => {
 // but also maybe show the exclusions on the details sheet
 // remove them from the job object though 
 
+// the comment logic is still being worked on
+// i want comments to be a per-item thing but show up on a per room basis
+
+// 
 
 
 
@@ -58,7 +66,11 @@ let calculateRooms = (list) => {
 
 
 let rows = [];
-
+// the main exported function
+// this is what gets invoked from main when the user clicks 'start'
+// all the info the user provided is passed in as well as settings and 2 callback functions - error and callback
+// the 'callback' callback is to let the user know the job is done
+// the error callback is to let the user know something went wrong - it also accepts an error code but so far these dont mean much
 let calculateProposal = (file, details, saveLocation, settings, error, callback) => {
   class Item {
     constructor (name, search, material, unit, groupName, spaceName) {
@@ -92,12 +104,14 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
       ['tops', 'countertops'].concat(settings.settings.top_shop_tool_subject.split(',')).forEach(v => {
         if(this.search == v.trim()) {
           isTop = true;
+          this.unit = 'sqft';
         }
       })
       return isTop;
     }
 
-    getUnit () {
+    getUnit (bypass=false) {
+      if(bypass) return 'LF';
       if(this.children.length > 0) {
         let firstChild = this.children[0];
         if(firstChild.unit == 'sqft' || firstChild.unit == 'sf') {
@@ -111,20 +125,33 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
       }
     }
 
-    writeLine () {
-      let total = this.calculateTotal();
-      let unit = this.getUnit();
-      if(unit == 'X') {
-        return `(${Math.ceil(total)}${unit}) ${this.name}`
-      } else {
-        return `${Math.ceil(total)} ${unit} of ${this.name}`;
-      }
+    writeLine () { // returns a string to be used in the proposal
+      let inLines = this.flattenChildren();
+      let outLines = [];
+      inLines.forEach(line => {
+        let total;
+        let unit;
+        if(this.isTops()) {
+          total = line.measurement;
+          unit = this.getUnit(this.isTops());
+        } else {
+          total = this.calculateTotal();
+          unit = this.getUnit(this.isTops());
+        }
+        if(unit == 'X') {
+          outLines.push(`(${Math.ceil(total)}${unit}) ${this.name}`);
+        } else {
+          outLines.push(`${Math.ceil(total)} ${unit} of ${this.name}`);
+        }
+      })
+      return outLines;
     }
 
-    calculateTotal() {
+    
+    calculateTotal(bypass=false) {
       // add up all children and return the total
       return this.children.reduce((total, current) => {
-        return total + current.calculateMeasurement()
+        return total + current.calculateMeasurement(bypass)
       }, 0);
     }
 
@@ -134,7 +161,8 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
       // I am comparing each child to each other child
       // shouldnt be an issue for this scale of items but worth knowing
       let shortList = Object.values(this.children.reduce((accumulator, current) => {
-        let roomName = `${current.spaceName}-${current.depth}-${current.comment}`;
+        current.calculateMeasurement(this.isTops())
+        let roomName = `${current.spaceName}-${current.depth}-${settings.settings.show_notes ? current.note : ''}`;
         if(!accumulator[roomName]) {
           accumulator[roomName] = current.clone();
         } else {
@@ -142,12 +170,19 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
         }
         return accumulator;
       }, {}))
-      return shortList;
+
+      // sort the children so that children with comments get grouped
+      // warning does not work if the sorting direction is reversed
+      return shortList.sort((a, b) => {
+        if(a.note < b.note) return 1; // 1 !CANNOT BE -1!
+        if(a.note > b.note) return -1; // -1 !CANNOT BE 1!
+        return 0;
+      });
     }
   }
 
   class Child {
-    constructor (name, search, measurement, depth, unit, groupName, spaceName, page, comment, excluded) {
+    constructor (name, search, measurement, depth, unit, groupName, spaceName, page, note, excluded) {
       this.name = name;
       this.search = search;
       this.measurement = measurement;
@@ -156,33 +191,39 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
       this.groupName = groupName;
       this.spaceName = spaceName;
       this.page = page;
-      this.comment = comment;
+      this.note = note;
       this.excluded = excluded;
     }
 
     clone () {
-      return new Child(this.name, this.search, this.measurement, this.depth, this.unit, this.groupName, this.spaceName, this.page, this.comment, this.excluded);
+      return new Child(this.name, this.search, this.measurement, this.depth, this.unit, this.groupName, this.spaceName, this.page, this.note, this.excluded);
     }
 
     calculateMultiplier () {
-      let roomarray = this.spaceName.split(" ");
       let n = 1;
-      if (roomarray[0].toLowerCase().includes("x)")) {
-        n = roomarray[0].slice(1, roomarray[0].length - 2);
-      } else if (roomarray[0].toLowerCase().includes("(x")) {
-        n = roomarray[0].slice(2, roomarray[0].length - 1);
-      } else if (roomarray[roomarray.length - 1].toLowerCase().includes("x)")) {
-        n = roomarray[roomarray.length - 1].slice(1, roomarray[roomarray.length - 1].length - 2);
-      } else if (roomarray[roomarray.length - 1].toLowerCase().includes("(x")) {
-        n = roomarray[roomarray.length - 1].slice(2, roomarray[roomarray.length - 1].length - 1);
-      } else {
-        // none
+      let name = this.spaceName.trim();
+      let m = name.match(/\((?:\d+X|X\d+)\)/i);
+      if(m) {
+        n = parseInt(m[0].replace(/\D/g, ''));
       }
+      // let roomarray = this.spaceName.trim().split(" ");
+      // let n = 1;
+      // if (roomarray[0].toLowerCase().includes("x)")) {
+      //   n = roomarray[0].slice(1, roomarray[0].length - 2);
+      // } else if (roomarray[0].toLowerCase().includes("(x")) {
+      //   n = roomarray[0].slice(2, roomarray[0].length - 1);
+      // } else if (roomarray[roomarray.length - 1].toLowerCase().includes("x)")) {
+      //   n = roomarray[roomarray.length - 1].slice(1, roomarray[roomarray.length - 1].length - 2);
+      // } else if (roomarray[roomarray.length - 1].toLowerCase().includes("(x")) {
+      //   n = roomarray[roomarray.length - 1].slice(2, roomarray[roomarray.length - 1].length - 1);
+      // } else {
+      //   // none
+      // }
       return n;
     }
 
-    calculateMeasurement () {
-      if(this.depth > 0) {
+    calculateMeasurement (bypass=false) {
+      if(this.depth > 0 && bypass) {
         this.unit = 'sqft';
         return (this.measurement * (this.depth / 12)) * this.calculateMultiplier();
       } else {
@@ -191,6 +232,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
     }
   }
 
+  // log some usefull data
   console.log("file: ", file);
   console.log("details: ", details);
   console.log("saveLocation: ", saveLocation);
@@ -203,6 +245,8 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
     }
   })
   if (file != null) {
+    // reads the .csv
+    // first line is the column headers 
     fs.createReadStream(file)
       .pipe(parse({ delimiter: ",", from_line: 1 }))
       .on("data", function (row) {
@@ -212,23 +256,33 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
         isSuccess = true;
         console.log("input successful");
         console.log(settings);
-        let columns = rows.shift();
+        let columns = rows.shift(); // remove the first index because these are column names and not actual data
         columns[0] = columns[0].slice(1);
         console.log(columns);
         let toolKey = settings.settings.primary_column || "Subject";
         let searchKey = toolKey == "Subject" ? "Label" : "Subject";
         let totals = { groups: {} };
         let job = { groups: {} };
+        let exclusions = [];
         for (let i = 0; i < rows.length; i++) {
           let row = {};
           for(let j = 0; j < columns.length; j++) {
             row[columns[j]] = rows[i][j];
           }
 
-          // JOB
+          if(row[searchKey] == 'exclusion') {
+            exclusions.push(row);
+            continue;
+          }
 
           if(!row['Group']) { row['Group'] = 'Base Bid' } // a blank group will be changed to 'Base Bid'
-
+          
+          // JOB
+          // the following nested if blocks take each row of data from the csv and organize it into group -> space -> item
+          // each row will either be a new Item or be added as a child of an existing Item
+          // Items can have children so that similar things can be grouped without erasing important unique info
+          // for example there may be many 'solid surface tops' items but each might have a different depth
+          // we still want to group all the solid surface top but want to be able to calculate sqft on a measurement by measurement basis
           if(job.groups[row['Group']]) {
             if(job.groups[row['Group']].rooms[row['Space']]) {
               if(job.groups[row['Group']].rooms[row['Space']].items[`${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`]) { // old item
@@ -237,11 +291,11 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                   row[searchKey],
                   Number(row['Measurement']),
                   row['Depth'] ? row['Depth'] : "",
-                  row['Depth'] > 0 ? 'sqft' : row['Measurement Unit'],
+                  row['Measurement Unit'],
                   row['Group'],
                   row['Space'],
                   row['Page Label'],
-                  row['Comment'],
+                  row['Note'] || '',
                   false,
                 ))
               } else { // new item
@@ -249,7 +303,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                   `${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`, 
                   row[searchKey], 
                   row['Material'] || '*',
-                  row['Depth'] > 0 ? 'sqft' : row['Measurement Unit'],
+                  row['Measurement Unit'],
                   row['Group'],
                   row['Space'],
                 );
@@ -258,11 +312,11 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                   row[searchKey],
                   Number(row['Measurement']),
                   row['Depth'] ? row['Depth'] : "",
-                  row['Depth'] > 0 ? 'sqft' : row['Measurement Unit'],
+                  row['Measurement Unit'],
                   row['Group'],
                   row['Space'],
                   row['Page Label'],
-                  row['Comment'],
+                  row['Note'] || '',
                   false,
                 ))
               }
@@ -272,7 +326,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                 `${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`, 
                 row[searchKey], 
                 row['Material'] || '*',
-                row['Depth'] > 0 ? 'sqft' : row['Measurement Unit'],
+                row['Measurement Unit'],
                 row['Group'],
                 row['Space'],
               );
@@ -281,11 +335,11 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                 row[searchKey],
                 Number(row['Measurement']),
                 row['Depth'] ? row['Depth'] : "",
-                row['Depth'] > 0 ? 'sqft' : row['Measurement Unit'],
+                row['Measurement Unit'],
                 row['Group'],
                 row['Space'],
                 row['Page Label'],
-                row['Comment'],
+                row['Note'] || '',
                 false,
               ))
             }
@@ -296,7 +350,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
               `${row[toolKey]}${row['Material']?` (${row['Material']})`:""}`, 
               row[searchKey], 
               row['Material'] || '*',
-              row['Depth'] > 0 ? 'sqft' : row['Measurement Unit'],
+              row['Measurement Unit'],
               row['Group'],
               row['Space'],
             );
@@ -305,11 +359,11 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
               row[searchKey],
               Number(row['Measurement']),
               row['Depth'] ? row['Depth'] : "",
-              row['Depth'] > 0 ? 'sqft' : row['Measurement Unit'],
+              row['Measurement Unit'],
               row['Group'],
               row['Space'],
               row['Page Label'],
-              row['Comment'],
+              row['Note'] || '',
               false,
             ))
           }
@@ -317,7 +371,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
 
 
         // TOTALS
-
+        
         Object.keys(job.groups).forEach(group => {
           if(!totals.groups[group]) {
             totals.groups[group] = { items: {} }
@@ -335,6 +389,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
             })
           }) 
         })
+
 
 
         // Word DOCX
@@ -382,28 +437,12 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
 
             Object.keys(job.groups[group].rooms[room].items).forEach(item => {
               let items = job.groups[group].rooms[room].items;
-              if(items[item].isTops()) {
-                let childList = items[item].flattenChildren();
-                childList.forEach(child => {
-                  let LF = Math.ceil(child.measurement / (child.depth / 12));
-                  scopelist.push(new docx.Paragraph({
-                    children: [
-                      new docx.TextRun({
-                        text: `${LF} LF of ${child.name}`,
-                        size: 24,
-                      })
-                    ],
-                    numbering: {
-                      reference: "my-bullets",
-                      level: 0,
-                    }
-                  }));
-                })
-              } else {
+              let lines = items[item].writeLine();
+              lines.forEach(line => {
                 scopelist.push(new docx.Paragraph({
                   children: [
                     new docx.TextRun({
-                      text: items[item].writeLine(),
+                      text: line,
                       size: 24,
                     })
                   ],
@@ -412,7 +451,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                     level: 0,
                   }
                 }));
-              }
+              })
             })
           })
 
@@ -585,8 +624,39 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
         })
         
 
+        exclusionsList = [];
+        exclusionsText = [
+          "Excludes QCP Certification and Labels",
+          "Excludes Arkansas Wage Rate/LEED/FSC certification labels",
+          "Excludes all Lighting and Electrical",
+          "Excludes all Painting and Finishing",
+          "Excludes All Demolition",
+        ];
 
+        if(settings.settings.include_default_exclusions) {
+          exclusionsText.forEach(text => {
+            exclusionsList.push(new docx.Paragraph({
+              children: [
+                new docx.TextRun({
+                  text: text,
+                  size: 22,
+                })
+              ], 
+            }))
+          })
+        }
 
+      exclusions.forEach(text => {
+          exclusionsList.push(new docx.Paragraph({
+            children: [
+              new docx.TextRun({
+                text: text['Comments'],
+                size: 22,
+              })
+            ], 
+          }))
+        })
+        
 
 
 
@@ -876,46 +946,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                     })
                   ],
                 }),
-                new docx.Paragraph({
-                  children: [
-                    new docx.TextRun({
-                      text: "Excludes QCP Certification and Labels",
-                      size: 22,
-                    })
-                  ],
-                }),
-                new docx.Paragraph({
-                  children: [
-                    new docx.TextRun({
-                      text: "Excludes Arkansas Wage Rate/LEED/FSC certification labels",
-                      size: 22,
-                    })
-                  ],
-                }),
-                new docx.Paragraph({
-                  children: [
-                    new docx.TextRun({
-                      text: "Excludes all Lighting and Electrical",
-                      size: 22,
-                    })
-                  ],
-                }),
-                new docx.Paragraph({
-                  children: [
-                    new docx.TextRun({
-                      text: "Excludes all Painting and Finishing",
-                      size: 22,
-                    })
-                  ],
-                }),
-                new docx.Paragraph({
-                  children: [
-                    new docx.TextRun({
-                      text: "Excludes All Demolition",
-                      size: 22,
-                    })
-                  ],
-                }),
+                ...exclusionsList,
                 new docx.Paragraph({
                   children: [
                     new docx.TextRun({
@@ -1210,8 +1241,6 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
             } catch {
               isSuccess = false;
               error('could not save document... make sure the file you are trying to overwrite is closed\n\nplease reselect the csv to try again...', '0001');
-              // console.log("could not save document... make sure the file being overwritten is closed - please reselect the csv to try again...");
-              // return
             }
           });
         }
@@ -1222,7 +1251,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
         // can just call methods on the document class to add text
         // don't have to have the whole thing defined in a giant constructor
 
-        // save a second document of the same name + '-totals'
+        // save a second document of the same name + '-totals' <- old
         // show totals for each item in the job
 
         // totals are not being generated but doc2 and doc3 are sort of woven together
@@ -1252,6 +1281,10 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
             doc3.fontSize(10);
             doc3.text(" ");
             doc3.text(" ");
+            doc3.text("Exclusions", { underline: true });
+            exclusions.forEach(exclusion => {
+              doc3.text(`${exclusion['Comments']}`);
+            })
           } else {
             doc2.pipe(fs.createWriteStream(saveLocation2));
             doc2.fontSize(10);
@@ -1259,7 +1292,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
             doc2.text(details.job + dateStr);
             doc2.text(saveLocation2);
           }
-          Object.keys(totals.groups).forEach((group) => {
+          Object.keys(totals.groups).forEach((group) => { // loop through each group
             if(!settings.settings.generate_details) {
               doc3.text(" ");
               doc3.font("Courier-Bold");
@@ -1273,14 +1306,71 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
             }
             let data = [];
 
+            let currentSubject = "";
+            let subjectNumber = 0;
+
+            let subjectColors = ['#adffaa', '#a6eaff', '#ffb4d7', '#ffc8a3', '#d1b4ff', '#faffb7'];
+
+            // the order of items in the details sheet is pretty all over the place
+            // I want to sort them by subject first and they by label second
+
             // this whole thing is such a mess now
-            Object.keys(totals.groups[group].items).sort().forEach((name, j) => {
-              let value = totals.groups[group].items[name];
-              let row = [name, value.unit == `ft' in"` ? "LF" : value.unit == `ft` ? "LF" : value.unit, Math.ceil(value.calculateTotal())];
+
+            // START
+            // loop through each item in the totals object
+            Object.keys(totals.groups[group].items)
+            .sort((a, b) => { // sort the array
+              let aS = totals.groups[group].items[a].search;
+              let bS = totals.groups[group].items[b].search;
+
+              let aL = totals.groups[group].items[a].name;
+              let bL = totals.groups[group].items[b].name;
+
+              // compare the subjects first and if equal, compare the labels
+              return aS.localeCompare(bS) || aL.localeCompare(bL)
+            })
+            .forEach((name, j) => { // the actual loop starts here - still have to reference every key to the totals object
+              let value = totals.groups[group].items[name]; // value = item
+
+              //           0                                                      1                                                                     2                                           
+              let row = [name, value.isTops() ? 'sqft' : value.unit == `ft' in"` ? "LF" : value.unit == `ft` ? "LF" : value.unit, Math.ceil(value.calculateTotal(value.isTops()))];
               if(!settings.settings.generate_details) { // primary item row - numbered with larger font
                 let PrimaryRows = [];
                 let detailsList = [];
-                let commentList = [];
+                let noteList = [];
+
+                if(value.search != currentSubject) { // break up each subject with a colored line
+                  detailsList.push([
+                    {
+                      border: { right: 0 },
+                      font: { 
+                        src: "./saves/Courier-Bold.afm", 
+                        family: "Courier-Bold", 
+                        size: 8 
+                      }, 
+                      backgroundColor: subjectColors[subjectNumber],
+                      text: `${value.search.toUpperCase()}`,
+                      colSpan: 3,
+                      padding: { left: '0.75em' },
+                    },
+                    {
+                      border: { left: 0 },
+                      font: { 
+                        src: "./saves/Courier-Bold.afm", 
+                        family: "Courier-Bold", 
+                        size: 8 
+                      }, 
+                      backgroundColor: subjectColors[subjectNumber],
+                      text: `${value.search.toUpperCase()}`,
+                      padding: { right: '0.75em' },
+                      colSpan: 3,
+                      align: { x: 'right' }
+                    },
+                  ]);
+                  currentSubject = value.search;
+                  subjectNumber += 1;
+                }
+
                 detailsList.push([
                   { 
                     font: { 
@@ -1337,10 +1427,59 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                 PrimaryRows.push(detailsList.length-1);
                 doc3.font("Courier");
                 doc3.fontSize(8);
-                value.flattenChildren().forEach((child, i) => {
-                  let isComment = child.comment ? true : false
+                currentNote = null;
+                let childList = value.flattenChildren();
+                childList.forEach((child, i) => {
+                  if(currentNote == null) { currentNote = child.note } 
+                  if(child.note != currentNote) {
+                    if(currentNote) {
+                      let cRow = [
+                        {
+                          font: { 
+                            src: "./saves/Courier-Bold.afm", 
+                            family: "Courier-Bold", 
+                            size: 8 
+                          }, 
+                          text: ``,
+                          backgroundColor: "#000",
+                          textColor: "#fff",
+                          colSpan: 1,
+                        },
+                        {
+                          font: { 
+                            src: "./saves/Courier-Bold.afm", 
+                            family: "Courier-Bold", 
+                            size: 8 
+                          },
+                          border: { top: 0, right: 0, bottom: 1 },
+                          text: '',
+                          backgroundColor: '#cfcfcf',
+                          textColor: '#000',
+                          align: { x: 'center', y: 'center' }
+                        },
+                        { 
+                          font: {
+                            src: "./saves/Courier-Bold.afm", 
+                            family: "Courier-Bold", 
+                            size: 7,
+                          },
+                          text: `${currentNote}`,
+                          border: { left: 0, bottom: 1 },
+                          backgroundColor: "#cfcfcf",
+                          colSpan: 4,
+                          align: { x: 'left', y: 'center' },
+                        },
+                      ];
+                      if(settings.settings.show_notes) {
+                        detailsList.push(cRow);
+                        if(currentNote.length > 75) { noteList.push(detailsList.length-1); }
+                        currentNote = child.note;
+                      }
+                    }
+                  }
+                  let isNote = child.note ? true : false
                   let dRow;
-                  if(!isComment) {
+                  if(!isNote || !settings.settings.show_notes) { // no note
                     if(child.unit == 'sqft') { // 5 col SQFT
                       dRow = [
                         {
@@ -1368,7 +1507,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                           borderColor: { bottom: '#000', top: '#000' },
                         },
                         {
-                          text: `${Math.round((child.calculateMeasurement() + Number.EPSILON) * 100) / 100}`,
+                          text: `${Math.round((child.calculateMeasurement(value.isTops()) + Number.EPSILON) * 100) / 100}`,
                           backgroundColor: "#dfdfdf",
                           align: { x: 'left', y: 'center' },
                           borderColor: { bottom: '#000', top: '#000' },
@@ -1395,14 +1534,14 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                           borderColor: { bottom: '#000', top: '#000' },
                         },
                         {
-                          text: `${Math.round((child.calculateMeasurement() + Number.EPSILON) * 100) / 100}`,
+                          text: `${Math.round((child.calculateMeasurement(value.isTops()) + Number.EPSILON) * 100) / 100}`,
                           backgroundColor: "#dfdfdf",
                           align: { x: 'left', y: 'center' },
                           borderColor: { bottom: '#000', top: '#000' },
                         }
                       ]
                     }
-                  } else {
+                  } else { // yes note
                     if(child.unit == 'sqft') { // 5 col SQFT
                       dRow = [
                         {
@@ -1410,10 +1549,10 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                           backgroundColor: "#000",
                         },
                         {
-                          text: '*',
-                          backgroundColor: '#bbbbbb',
+                          text: '',
+                          backgroundColor: '#bdbdbd',
                           align: { x: 'center', y: 'bottom' },
-                          border: { bottom: 0, right: 0 },
+                          border: { bottom: 0, right: 0, top: 0 },
                           borderColor: { bottom: '#000', top: '#000' },
                         },
                         {
@@ -1436,7 +1575,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                           borderColor: { bottom: '#000', top: '#000' },
                         },
                         {
-                          text: `${Math.round((child.calculateMeasurement() + Number.EPSILON) * 100) / 100}`,
+                          text: `${Math.round((child.calculateMeasurement(value.isTops()) + Number.EPSILON) * 100) / 100}`,
                           backgroundColor: "#dfdfdf",
                           align: { x: 'left', y: 'center' },
                           borderColor: { bottom: '#000', top: '#000' },
@@ -1450,10 +1589,10 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                           backgroundColor: "#000",
                         },
                         {
-                          text: '*',
-                          backgroundColor: '#bbbbbb',
+                          text: '',
+                          backgroundColor: '#cfcfcf',
                           align: { x: 'center', y: 'bottom' },
-                          border: { bottom: 0, right: 0 },
+                          border: { bottom: 0, right: 0, top: 0 },
                           borderColor: { bottom: '#000', top: '#000' },
                         },
                         {
@@ -1470,7 +1609,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                           borderColor: { bottom: '#000', top: '#000' },
                         },
                         {
-                          text: `${Math.round((child.calculateMeasurement() + Number.EPSILON) * 100) / 100}`,
+                          text: `${Math.round((child.calculateMeasurement(value.isTops()) + Number.EPSILON) * 100) / 100}`,
                           backgroundColor: "#dfdfdf",
                           align: { x: 'left', y: 'center' },
                           borderColor: { bottom: '#000', top: '#000' },
@@ -1479,49 +1618,54 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                     }
                   }
                   detailsList.push(dRow);
-                  if(child.comment) {
-                    console.log(child.comment); // ↳
-                    let cRow = [
-                      {
-                        font: { 
-                          src: "./saves/Courier-Bold.afm", 
-                          family: "Courier-Bold", 
-                          size: 8 
-                        }, 
-                        text: ``,
-                        backgroundColor: "#000",
-                        textColor: "#fff",
-                        colSpan: 1,
-                      },
-                      {
-                        font: { 
-                          src: "./saves/Courier-Bold.afm", 
-                          family: "Courier-Bold", 
-                          size: 8 
+                  if(childList.length == 1 || i+1 == childList.length) {
+                    if(currentNote.length > 0) {
+                      let cRow = [
+                        {
+                          font: { 
+                            src: "./saves/Courier-Bold.afm", 
+                            family: "Courier-Bold", 
+                            size: 8 
+                          }, 
+                          text: ``,
+                          backgroundColor: "#000",
+                          textColor: "#fff",
+                          colSpan: 1,
                         },
-                        border: { top: 0, right: 0 },
-                        text: '',
-                        backgroundColor: '#bbbbbb',
-                        textColor: '#000',
-                        align: { x: 'center', y: 'center' }
-                      },
-                      { 
-                        font: {
-                          size: 8,
+                        {
+                          font: { 
+                            src: "./saves/Courier-Bold.afm", 
+                            family: "Courier-Bold", 
+                            size: 8 
+                          },
+                          border: { top: 0, right: 0, bottom: 1 },
+                          text: '',
+                          backgroundColor: '#cfcfcf',
+                          textColor: '#000',
+                          align: { x: 'center', y: 'center' }
                         },
-                        text: `${child.comment}`,
-                        border: { left: 0 },
-                        backgroundColor: "#bbbbbb",
-                        colSpan: 4,
-                        align: { x: 'left', y: 'center' },
-                      },
-                    ];
-                    detailsList.push(cRow);
-                    if(child.comment) { if(child.comment.length > 75) { commentList.push(detailsList.length-1); }}
+                        { 
+                          font: {
+                            src: "./saves/Courier-Bold.afm", 
+                            family: "Courier-Bold", 
+                            size: 7,
+                          },
+                          text: `${currentNote}`,
+                          border: { left: 0, bottom: 1 },
+                          backgroundColor: "#cfcfcf",
+                          colSpan: 4,
+                          align: { x: 'left', y: 'center' },
+                        },
+                      ];
+                      if(settings.settings.show_notes) {
+                        detailsList.push(cRow);
+                        if(currentNote.length > 75) { noteList.push(detailsList.length-1); }
+                      }
+                    }
                   }
                 })
                 let nextPrimary = PrimaryRows.shift();
-                let nextComment = commentList.shift();
+                let nextNote = noteList.shift();
                 doc3.table({
                   data: detailsList,
                   columnStyles: (i) => {
@@ -1536,7 +1680,7 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                         return { width: 90 };
                       case 4:
                         return { width: 60 };
-                      case 4:
+                      case 5:
                         return { width: 40 };
                     }
                   },
@@ -1549,13 +1693,12 @@ let calculateProposal = (file, details, saveLocation, settings, error, callback)
                           top: 3
                         }
                       }
-                    } else if (i == nextComment) {
-                      console.log("willow")
-                      nextComment = commentList.shift();
+                    } else if (i == nextNote) {
+                      nextNote = noteList.shift();
                       return { border: { bottom: 0.5, top: 0.5 }, }
                     } else {
                       return { 
-                        height: 10,
+                        height: 12,
                         border: { bottom: 0.5, top: 0.5 },
                       } 
                     }

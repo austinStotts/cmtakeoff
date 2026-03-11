@@ -55,6 +55,8 @@ let defaults = {
         "generate_details": false, // this is called 'use legacy details' on the client ...also... is not currently user changable 
         "auto_open_word": true,
         "add_page_labels": true,
+        "include_default_exclusions": true,
+        "show_notes": true,
         "top_shop_tool_subject": "tops",
         "require_all_fields": true,
     }

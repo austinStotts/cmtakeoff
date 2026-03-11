@@ -130,15 +130,21 @@ let settingsBtn = document.getElementById("settings-btn").addEventListener('clic
                     <option value="Label" ${currentSettings.settings.primary_column == "Label" ? 'Selected' : ''}>Label</option>
                 </select>
                 <div class="settings-label main-open-word">auto open word:<span class="tooltip-open-word">open proposals automatically in word after creation?</span></div><input id="settings-open-word" class="settings-input" type="checkbox" ${currentSettings.settings.auto_open_word ? 'checked' : ''}>
+                <div class="settings-label main-page-labels">add page labels:<span class="tooltip-page-labels">add page labels to rooms on proposal?</span></div><input id="settings-page-labels" class="settings-input" type="checkbox" ${currentSettings.settings.add_page_labels ? 'checked' : ''}>
+                <div class="settings-label main-default-exclusions">add exclusions:<span class="tooltip-default-exclusions">include standard exclusions on proposal? leave unchecked for empty exclusions</span></div><input id="settings-default-exclusions" class="settings-input" type="checkbox" ${currentSettings.settings.include_default_exclusions ? 'checked' : ''}>
+                <div class="settings-label main-show-notes">show notes:<span class="tooltip-show-notes">show or hide notes on details sheet?</span></div><input id="settings-show-notes" class="settings-input" type="checkbox" ${currentSettings.settings.show_notes ? 'checked' : ''}>
                 <div class="settings-label main-top-shop">topshop tool subject:<span class="tooltip-top-shop">what subject, label, or secondary column name is being used for top shop items?       ! use a comma to filter multiple subjects ex: Quartz tops, Solid Surface tops</span></div><input id="settings-top-shop-subject" class="settings-inputs" type="text" placeholder="countertops" value="${currentSettings.settings.top_shop_tool_subject}">
                 <div class="settings-label disabled-label">require all fields:</div><input id="settings-require-inputs" class="settings-inputs disabled-input" type="checkbox" disabled ${currentSettings.settings.require_all_fields ? 'checked' : ''}>
                 <button id="settings-save-btn" class="settings-save-btn">save</button>
             `
-
+//include_default_exclusions
             let saveName = document.getElementById('settings-name');
             let primaryColumn = document.getElementById('settings-primary-column');
             // let generateDetails = document.getElementById('settings-generate-details');
             let saveOpenWord = document.getElementById('settings-open-word');
+            let savePageLabels = document.getElementById('settings-page-labels');
+            let saveDefaultExclusions = document.getElementById('settings-default-exclusions');
+            let saveShowNotes = document.getElementById('settings-show-notes');
             let saveTopShopToolSubject = document.getElementById('settings-top-shop-subject');
             let saveRequireInputs = document.getElementById('settings-require-inputs');
 
@@ -146,6 +152,9 @@ let settingsBtn = document.getElementById("settings-btn").addEventListener('clic
             primaryColumn.addEventListener('change', (e) => { currentSettings.settings.primary_column = e.target.selectedIndex == 1? "Label" : "Subject" });
             // generateDetails.addEventListener('change', (e) => { console.log(e); currentSettings.settings.generate_details = e.target.checked });
             saveOpenWord.addEventListener('change', (e) => { console.log(e); currentSettings.settings.auto_open_word = e.target.checked });
+            savePageLabels.addEventListener('change', (e) => { console.log(e); currentSettings.settings.add_page_labels = e.target.checked });
+            saveDefaultExclusions.addEventListener('change', (e) => { console.log(e); currentSettings.settings.include_default_exclusions = e.target.checked });
+            saveShowNotes.addEventListener('change', (e) => { console.log(e); currentSettings.settings.show_notes = e.target.checked });
             saveTopShopToolSubject.addEventListener('change', (e) => { currentSettings.settings.top_shop_tool_subject = e.target.value });
             saveRequireInputs.addEventListener('change', (e) => { currentSettings.settings.require_all_inputs = e.target.checked });
 

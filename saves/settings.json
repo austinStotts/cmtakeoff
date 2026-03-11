@@ -1,1 +1,1 @@
-{"info":{"user":"Austin Stotts"},"settings":{"primary_column":"Label","generate_details":false,"auto_open_word":false,"add_page_labels":false,"top_shop_tool_subject":"tops, quartz top","require_all_fields":true}}
+{"info":{"user":"Austin Stotts"},"settings":{"primary_column":"Label","generate_details":false,"auto_open_word":true,"add_page_labels":true,"include_default_exclusions":true,"top_shop_tool_subject":"tops","require_all_fields":true,"show_notes":true}}

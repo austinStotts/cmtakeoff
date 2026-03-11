@@ -464,3 +464,71 @@ html {
     text-decoration: underline;
     cursor: help;
 }
+
+
+
+.tooltip-page-labels {
+    visibility: hidden;
+    width: 150px;
+    background-color: black;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+}
+
+.main-page-labels:hover .tooltip-page-labels {
+    visibility: visible;
+}
+
+.main-page-labels:hover {
+    text-decoration: underline;
+    cursor: help;
+}
+
+
+
+.tooltip-default-exclusions {
+    visibility: hidden;
+    width: 150px;
+    background-color: black;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+}
+
+.main-default-exclusions:hover .tooltip-default-exclusions {
+    visibility: visible;
+}
+
+.main-default-exclusions:hover {
+    text-decoration: underline;
+    cursor: help;
+}
+
+
+.tooltip-show-notes {
+    visibility: hidden;
+    width: 150px;
+    background-color: black;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+}
+
+.main-show-notes:hover .tooltip-show-notes {
+    visibility: visible;
+}
+
+.main-show-notes:hover {
+    text-decoration: underline;
+    cursor: help;
+}

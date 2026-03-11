@@ -7,7 +7,7 @@ let Settings = require("./settings.js");
 // you will see similar code block all over
 // this just tests to see if the program is being run from a dev environment
 // if the program running the code is 'vscode' then we are not in production...
-// things like opening work or the default save location are changed to be quicker for testing 
+// things like opening word or the default save location are changed to be quicker for testing 
 // also most of the file paths change when installed vs run from this script
 let devMode = false;
 if(process.env.TERM_PROGRAM == 'vscode') {
@@ -121,7 +121,7 @@ app.whenReady().then(() => {
   ipcMain.on('start', handleStart);
 })
 
-// runs iff all the windows are closed to end the program
+// runs if all the windows are closed to end the program
 // remove to make one of those annoying apps that you have to force quit to actually close
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -136,5 +136,3 @@ let saveSettings = (data) => {
 }
 
 Settings.loadSettings(saveSettings);
-
-// the proposal generation is not working right...
